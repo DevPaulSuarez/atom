@@ -1,0 +1,381 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/project.dart';
+import '../services/api_service.dart';
+
+export '../services/api_service.dart' show ApiException;
+
+enum PomodoroPhase { idle, working, paused, shortBreak, longBreak, askComplete }
+
+class AppState extends ChangeNotifier {
+  final _api = ApiService();
+
+  List<Project> _projects = [];
+  Project? _activeProject;
+  PomodoroPhase _phase = PomodoroPhase.idle;
+  int _remainingSeconds = _kWork;
+  int _completedPomodoros = 0;
+  Timer? _timer;
+  bool _isDarkMode = false;
+  final _ringtone = FlutterRingtonePlayer();
+
+  bool _authLoaded = false;
+  bool _projectsLoading = false;
+  String? _projectsError;
+
+  static const _kWork = 25 * 60;
+  static const _kShortBreak = 5 * 60;
+  static const _kLongBreak = 20 * 60;
+  static const _kCycleLength = 4;
+  static const _storageKey = 'atom_projects_cache_v2';
+
+  // ── Getters ────────────────────────────────────────────────────────────────
+
+  List<Project> get projects => _projects;
+  Project? get activeProject => _activeProject;
+  PomodoroPhase get phase => _phase;
+  int get remainingSeconds => _remainingSeconds;
+  bool get isDarkMode => _isDarkMode;
+  bool get isRunning => _phase == PomodoroPhase.working;
+  bool get isBreak =>
+      _phase == PomodoroPhase.shortBreak || _phase == PomodoroPhase.longBreak;
+  bool get isLongBreak => _phase == PomodoroPhase.longBreak;
+  int get completedInCycle => _completedPomodoros % _kCycleLength;
+  int get sessionNumber => completedInCycle + 1;
+  bool get isLoggedIn => _api.hasSession;
+  bool get authLoaded => _authLoaded;
+  bool get projectsLoading => _projectsLoading;
+  String? get projectsError => _projectsError;
+  String get userName => _api.userName;
+
+  String get formattedTime {
+    final m = _remainingSeconds ~/ 60;
+    final s = _remainingSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  double get timerProgress {
+    final total = switch (_phase) {
+      PomodoroPhase.shortBreak => _kShortBreak,
+      PomodoroPhase.longBreak => _kLongBreak,
+      _ => _kWork,
+    };
+    return 1.0 - (_remainingSeconds / total).clamp(0.0, 1.0);
+  }
+
+  AppState() {
+    _init();
+  }
+
+  Future<void> _init() async {
+    await _api.loadSession();
+    _authLoaded = true;
+    if (_api.hasSession) await _loadProjects();
+    notifyListeners();
+  }
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+
+  Future<String?> register(String name, String email, String password) async {
+    try {
+      final data = await _api.post('/auth/register', {
+        'name': name,
+        'email': email,
+        'password': password,
+      }) as Map<String, dynamic>;
+
+      await _api.saveSession(
+        data['accessToken'] as String,
+        data['refreshToken'] as String,
+        (data['user'] as Map<String, dynamic>)['name'] as String,
+      );
+      await _loadProjects();
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Error de conexión. ¿Está el servidor corriendo?';
+    }
+  }
+
+  Future<String?> login(String email, String password) async {
+    try {
+      final data = await _api.post('/auth/login', {
+        'email': email,
+        'password': password,
+      }) as Map<String, dynamic>;
+
+      await _api.saveSession(
+        data['accessToken'] as String,
+        data['refreshToken'] as String,
+        (data['user'] as Map<String, dynamic>)['name'] as String,
+      );
+      await _loadProjects();
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Error de conexión. ¿Está el servidor corriendo?';
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_storageKey);
+      if (raw != null) {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final refreshToken = data['refreshToken'] as String?;
+        if (refreshToken != null) {
+          await _api.post('/auth/logout', {'refreshToken': refreshToken});
+        }
+      }
+    } catch (_) {}
+    await _api.clearSession();
+    _reset();
+    notifyListeners();
+  }
+
+  void _reset() {
+    _projects = [];
+    _activeProject = null;
+    _stopTimer();
+    stopAlarm();
+    _phase = PomodoroPhase.idle;
+    _completedPomodoros = 0;
+  }
+
+  // ── Projects ───────────────────────────────────────────────────────────────
+
+  Future<void> _loadProjects() async {
+    _projectsLoading = true;
+    _projectsError = null;
+    notifyListeners();
+
+    try {
+      final data = await _api.get('/projects') as List;
+      _projects = data
+          .map((e) => Project.fromApiList(e as Map<String, dynamic>))
+          .toList();
+      _projectsError = null;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await _api.clearSession();
+      }
+      _projectsError = e.message;
+      _projects = _loadCachedProjects();
+    } catch (_) {
+      _projectsError = 'Sin conexión';
+      _projects = _loadCachedProjects();
+    } finally {
+      _projectsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshProjects() => _loadProjects();
+
+  Future<void> setActiveProject(Project project) async {
+    if (_activeProject?.id != project.id) {
+      _stopTimer();
+      stopAlarm();
+      _phase = PomodoroPhase.idle;
+      _remainingSeconds = _kWork;
+      _completedPomodoros = 0;
+    }
+
+    _activeProject = project;
+    notifyListeners();
+
+    // Si no tiene tasks cargadas, las pedimos al backend
+    if (!project.tasksLoaded) {
+      try {
+        final data = await _api.get('/projects/${project.id}') as Map<String, dynamic>;
+        final full = Project.fromApi(data);
+        final idx = _projects.indexWhere((p) => p.id == project.id);
+        if (idx != -1) {
+          _projects[idx] = full;
+          _activeProject = full;
+        }
+        notifyListeners();
+      } catch (_) {}
+    }
+  }
+
+  Future<String?> addProject(String name, String description) async {
+    try {
+      final data = await _api.post('/projects', {
+        'name': name,
+        'description': description,
+      }) as Map<String, dynamic>;
+
+      final project = Project.fromApi(data);
+      _projects.insert(0, project);
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Error de conexión';
+    }
+  }
+
+  Future<void> deleteProject(String id) async {
+    _projects.removeWhere((p) => p.id == id);
+    if (_activeProject?.id == id) {
+      _stopTimer();
+      stopAlarm();
+      _activeProject = null;
+      _phase = PomodoroPhase.idle;
+      _completedPomodoros = 0;
+    }
+    notifyListeners();
+    try {
+      await _api.delete('/projects/$id');
+    } catch (_) {
+      // optimistic — si falla, el próximo refresh lo restaurará
+    }
+  }
+
+  // ── Pomodoro ───────────────────────────────────────────────────────────────
+
+  void startPomodoro() {
+    stopAlarm();
+    _phase = PomodoroPhase.working;
+    _remainingSeconds = _kWork;
+    _startTimer();
+    notifyListeners();
+  }
+
+  void pausePomodoro() {
+    _stopTimer();
+    _phase = PomodoroPhase.paused;
+    notifyListeners();
+  }
+
+  void resumePomodoro() {
+    _phase = PomodoroPhase.working;
+    _startTimer();
+    notifyListeners();
+  }
+
+  Future<void> completeCurrentTask() async {
+    final task = _activeProject?.currentTask;
+    if (task != null) {
+      task.isCompleted = true;
+      try {
+        await _api.patch('/tasks/${task.id}', {'isCompleted': true});
+        // Actualizar status del proyecto si todas completadas
+        final proj = _activeProject;
+        if (proj != null && proj.tasks.every((t) => t.isCompleted)) {
+          proj.status = 'completed';
+        }
+      } catch (_) {}
+    }
+    stopAlarm();
+    _startBreak();
+    notifyListeners();
+  }
+
+  void continueCurrentTask() {
+    stopAlarm();
+    _startBreak();
+  }
+
+  void _startBreak() {
+    if (_completedPomodoros % _kCycleLength == 0) {
+      _phase = PomodoroPhase.longBreak;
+      _remainingSeconds = _kLongBreak;
+    } else {
+      _phase = PomodoroPhase.shortBreak;
+      _remainingSeconds = _kShortBreak;
+    }
+    _startTimer();
+    notifyListeners();
+  }
+
+  void skipPhase() {
+    _stopTimer();
+    _remainingSeconds = 0;
+    _onPhaseEnd();
+  }
+
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
+
+  // ── Alarm ──────────────────────────────────────────────────────────────────
+
+  void _playAlarm() {
+    if (kIsWeb) return;
+    try {
+      _ringtone.playAlarm(looping: true, volume: 0.6);
+    } catch (_) {}
+  }
+
+  void stopAlarm() {
+    if (kIsWeb) return;
+    try {
+      _ringtone.stop();
+    } catch (_) {}
+  }
+
+  // ── Timer ──────────────────────────────────────────────────────────────────
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _tick() {
+    if (_remainingSeconds > 0) {
+      _remainingSeconds--;
+      notifyListeners();
+    } else {
+      _stopTimer();
+      _onPhaseEnd();
+    }
+  }
+
+  void _onPhaseEnd() {
+    if (_phase == PomodoroPhase.working) {
+      _activeProject?.currentTask?.pomodorosCount++;
+      _completedPomodoros++;
+      _phase = PomodoroPhase.askComplete;
+    } else if (_phase == PomodoroPhase.shortBreak ||
+        _phase == PomodoroPhase.longBreak) {
+      _phase = PomodoroPhase.idle;
+      _remainingSeconds = _kWork;
+    }
+    _playAlarm();
+    notifyListeners();
+  }
+
+  // ── Cache offline ──────────────────────────────────────────────────────────
+
+  List<Project> _loadCachedProjects() {
+    return [];
+  }
+
+  // ── Dispose ────────────────────────────────────────────────────────────────
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    stopAlarm();
+    super.dispose();
+  }
+}
