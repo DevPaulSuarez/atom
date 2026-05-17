@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST http://localhost:3000/auth/register -H 'Content-Type: application/json' -d '{\"name\":\"Test\",\"email\":\"groqtest@test.com\",\"password\":\"123456\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\('token:', d.get\\('accessToken',''\\)[:30]+'...' if d.get\\('accessToken'\\) else d\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"groqtest@test.com\",\"password\":\"123456\"}')",
+      "Bash(python3 -c ' *)",
+      "Bash(xargs kill -9)"
+    ]
+  }
+}

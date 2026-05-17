@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/projects_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -28,12 +29,15 @@ class AtomApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: !state.authLoaded
-          ? const _SplashScreen()
-          : state.isLoggedIn
-              ? const ProjectsScreen()
-              : const AuthScreen(),
+      home: _resolveHome(state),
     );
+  }
+
+  Widget _resolveHome(AppState state) {
+    if (!state.authLoaded) return const _SplashScreen();
+    if (!state.hasSeenOnboarding) return const OnboardingScreen();
+    if (!state.isLoggedIn) return const AuthScreen();
+    return const ProjectsScreen();
   }
 }
 
@@ -42,12 +46,20 @@ class _SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.watch<AppState>().isDarkMode;
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.bgDark : AppColors.bgLight,
-      body: const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
+    return const Scaffold(
+      backgroundColor: AppColors.bgDark,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.timer_rounded, color: AppColors.primary, size: 52),
+            SizedBox(height: 16),
+            CircularProgressIndicator(
+              color: AppColors.primary,
+              strokeWidth: 2,
+            ),
+          ],
+        ),
       ),
     );
   }

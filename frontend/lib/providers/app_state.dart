@@ -21,7 +21,8 @@ class AppState extends ChangeNotifier {
   int _remainingSeconds = _kWork;
   int _completedPomodoros = 0;
   Timer? _timer;
-  bool _isDarkMode = false;
+  bool _isDarkMode = true; // oscuro por defecto
+  bool _hasSeenOnboarding = false;
   final _ringtone = FlutterRingtonePlayer();
 
   bool _authLoaded = false;
@@ -33,6 +34,8 @@ class AppState extends ChangeNotifier {
   static const _kLongBreak = 20 * 60;
   static const _kCycleLength = 4;
   static const _storageKey = 'atom_projects_cache_v2';
+  static const _kDarkMode = 'atom_dark_mode';
+  static const _kOnboarding = 'atom_onboarding_done';
 
   // ── Getters ────────────────────────────────────────────────────────────────
 
@@ -52,6 +55,7 @@ class AppState extends ChangeNotifier {
   bool get projectsLoading => _projectsLoading;
   String? get projectsError => _projectsError;
   String get userName => _api.userName;
+  bool get hasSeenOnboarding => _hasSeenOnboarding;
 
   String get formattedTime {
     final m = _remainingSeconds ~/ 60;
@@ -73,9 +77,19 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isDarkMode = prefs.getBool(_kDarkMode) ?? true; // oscuro por defecto
+    _hasSeenOnboarding = prefs.getBool(_kOnboarding) ?? false;
     await _api.loadSession();
     _authLoaded = true;
     if (_api.hasSession) await _loadProjects();
+    notifyListeners();
+  }
+
+  Future<void> completeOnboarding() async {
+    _hasSeenOnboarding = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOnboarding, true);
     notifyListeners();
   }
 
@@ -182,7 +196,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshProjects() => _loadProjects();
 
-  Future<void> setActiveProject(Project project) async {
+  void setActiveProject(Project project) {
     if (_activeProject?.id != project.id) {
       _stopTimer();
       stopAlarm();
@@ -190,23 +204,8 @@ class AppState extends ChangeNotifier {
       _remainingSeconds = _kWork;
       _completedPomodoros = 0;
     }
-
     _activeProject = project;
     notifyListeners();
-
-    // Si no tiene tasks cargadas, las pedimos al backend
-    if (!project.tasksLoaded) {
-      try {
-        final data = await _api.get('/projects/${project.id}') as Map<String, dynamic>;
-        final full = Project.fromApi(data);
-        final idx = _projects.indexWhere((p) => p.id == project.id);
-        if (idx != -1) {
-          _projects[idx] = full;
-          _activeProject = full;
-        }
-        notifyListeners();
-      } catch (_) {}
-    }
   }
 
   Future<String?> addProject(String name, String description) async {
@@ -307,8 +306,10 @@ class AppState extends ChangeNotifier {
     _onPhaseEnd();
   }
 
-  void toggleTheme() {
+  Future<void> toggleTheme() async {
     _isDarkMode = !_isDarkMode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kDarkMode, _isDarkMode);
     notifyListeners();
   }
 

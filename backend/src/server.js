@@ -10,7 +10,7 @@ const start = async () => {
     app.listen(env.PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${env.PORT}`);
       console.log(`📋 Entorno:  ${env.NODE_ENV}`);
-      console.log(`🤖 Ollama:   ${env.OLLAMA_URL}  (modelo: ${env.OLLAMA_MODEL})`);
+      console.log(`🤖 IA:       Groq  (modelo: ${env.GROQ_MODEL})`);
     });
   } catch (err) {
     console.error('❌ Error al iniciar el servidor:', err.message);

@@ -18,15 +18,11 @@ class ProjectDetailScreen extends StatelessWidget {
       orElse: () => state.projects.first,
     );
     final isDark = state.isDarkMode;
-    final textPrimary = isDark
-        ? AppColors.textPrimaryDark
-        : AppColors.textPrimaryLight;
-    final textSecondary = isDark
-        ? AppColors.textSecondaryDark
-        : AppColors.textSecondaryLight;
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
+    final cardColor = AppColors.card(isDark);
+    final borderColor = AppColors.border(isDark);
     final trackColor = isDark ? AppColors.trackDark : AppColors.trackLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final currentTask = project.currentTask;
     final pct = (project.progress * 100).round();
@@ -64,7 +60,7 @@ class ProjectDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Progress header
+                  // Progress card
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -114,16 +110,17 @@ class ProjectDetailScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '${project.completedCount} de ${project.totalCount} tareas completadas',
+                              '${project.completedCount} de ${project.totalCount} tareas',
                               style: TextStyle(
                                 color: textSecondary,
                                 fontSize: 13,
                               ),
                             ),
-                            if (project.tasksLoaded && project.tasks.isNotEmpty)
+                            if (project.tasksLoaded &&
+                                project.tasks.isNotEmpty)
                               GestureDetector(
-                                onTap: () =>
-                                    _showTasksSheet(context, project, isDark),
+                                onTap: () => _showTasksSheet(
+                                    context, project, isDark),
                                 child: const Row(
                                   children: [
                                     Text(
@@ -151,7 +148,22 @@ class ProjectDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 24),
 
-                  // Tarea actual label
+                  // Project description (if any)
+                  if (project.description.isNotEmpty) ...[
+                    Text(
+                      project.description,
+                      style: TextStyle(
+                        color: textSecondary,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Current task label
                   Text(
                     'TAREA ACTUAL',
                     style: TextStyle(
@@ -167,78 +179,96 @@ class ProjectDetailScreen extends StatelessWidget {
                   if (currentTask != null)
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.cardDark
-                            : AppColors.primarySoft,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isDark
-                              ? AppColors.primary.withValues(alpha: 0.35)
-                              : AppColors.primary.withValues(alpha: 0.2),
+                          color: AppColors.primary.withValues(
+                              alpha: isDark ? 0.35 : 0.2),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
-                                    alpha: isDark ? 0.25 : 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'Tarea ${project.currentTaskIndex + 1} de ${project.tasks.length}',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: IntrinsicHeight(
+                          child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Left accent stripe
+                            Container(
+                              width: 4,
+                              color: AppColors.primary,
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary
+                                            .withValues(
+                                                alpha: isDark
+                                                    ? 0.25
+                                                    : 0.15),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'Tarea ${project.currentTaskIndex + 1} de ${project.totalCount}',
+                                        style: const TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      currentTask.title,
+                                      style: TextStyle(
+                                        color: textPrimary,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.4,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    if (currentTask.pomodorosCount >
+                                        0) ...[
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.timer_outlined,
+                                            size: 14,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            '${currentTask.pomodorosCount} pomodoro${currentTask.pomodorosCount > 1 ? 's' : ''} dedicado${currentTask.pomodorosCount > 1 ? 's' : ''}',
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            currentTask.title,
-                            style: TextStyle(
-                              color: textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              height: 1.4,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          if (currentTask.pomodorosCount > 0) ...[
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.timer_outlined,
-                                  size: 14,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  '${currentTask.pomodorosCount} pomodoro${currentTask.pomodorosCount > 1 ? 's' : ''} dedicado${currentTask.pomodorosCount > 1 ? 's' : ''}',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
-                        ],
+                        ),
+                        ),
                       ),
                     ),
 
@@ -253,9 +283,7 @@ class ProjectDetailScreen extends StatelessWidget {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.cardDark
-                            : AppColors.primarySoft,
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: AppColors.primary.withValues(alpha: 0.3),
@@ -281,41 +309,53 @@ class ProjectDetailScreen extends StatelessWidget {
                       ),
                     ),
 
-                  // CTA button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: () => _goToPomodoro(context, state),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                  // CTA button with glow
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            pomodoroActive
-                                ? Icons.play_arrow_rounded
-                                : Icons.timer_rounded,
-                            size: 22,
+                      ],
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 60,
+                      child: ElevatedButton(
+                        onPressed: () => _goToPomodoro(context, state),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            pomodoroActive
-                                ? 'Continuar Pomodoro'
-                                : 'Iniciar Pomodoro',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.2,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              pomodoroActive
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.timer_rounded,
+                              size: 22,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 10),
+                            Text(
+                              pomodoroActive
+                                  ? 'Continuar Pomodoro'
+                                  : 'Iniciar Pomodoro',
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -336,7 +376,8 @@ class ProjectDetailScreen extends StatelessWidget {
   }
 
   void _goToPomodoro(BuildContext context, AppState state) {
-    state.setActiveProject(state.projects.firstWhere((p) => p.id == projectId));
+    state.setActiveProject(
+        state.projects.firstWhere((p) => p.id == projectId));
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PomodoroScreen()),
@@ -362,13 +403,16 @@ class ProjectDetailScreen extends StatelessWidget {
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child:
+                const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
 }
+
+// ── Completed view ────────────────────────────────────────────────────────────
 
 class _CompletedView extends StatelessWidget {
   final Color textPrimary;
@@ -413,7 +457,8 @@ class _CompletedView extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Has completado todas las tareas.\n¡Excelente trabajo!',
-              style: TextStyle(color: textSecondary, fontSize: 15, height: 1.5),
+              style: TextStyle(
+                  color: textSecondary, fontSize: 15, height: 1.5),
               textAlign: TextAlign.center,
             ),
           ],
@@ -433,12 +478,10 @@ class _TasksSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final handle = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final textPrimary =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final textSecondary =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bg = AppColors.card(isDark);
+    final handle = AppColors.border(isDark);
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
 
     final tasks = project.tasks as List;
     final completed = tasks.where((t) => t.isCompleted as bool).length;
@@ -452,7 +495,8 @@ class _TasksSheet extends StatelessWidget {
       builder: (_, scrollCtrl) => Container(
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           children: [
@@ -487,14 +531,15 @@ class _TasksSheet extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           '$completed completadas · ${total - completed} pendientes',
-                          style: TextStyle(color: textSecondary, fontSize: 13),
+                          style:
+                              TextStyle(color: textSecondary, fontSize: 13),
                         ),
                       ],
                     ),
                   ),
                   SizedBox(
-                    width: 48,
-                    height: 48,
+                    width: 52,
+                    height: 52,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -555,7 +600,8 @@ class _TasksSheet extends StatelessWidget {
                                   height: 22,
                                   margin: const EdgeInsets.only(top: 4),
                                   color: isCompleted
-                                      ? AppColors.success.withValues(alpha: 0.3)
+                                      ? AppColors.success
+                                          .withValues(alpha: 0.3)
                                       : handle,
                                 ),
                             ],
@@ -566,18 +612,22 @@ class _TasksSheet extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 if (isCurrent)
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 5),
+                                    padding:
+                                        const EdgeInsets.only(bottom: 5),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 2),
                                       decoration: BoxDecoration(
                                         color: AppColors.primary
                                             .withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
+                                        borderRadius:
+                                            BorderRadius.circular(6),
                                       ),
                                       child: const Text(
                                         'EN CURSO',
@@ -593,8 +643,9 @@ class _TasksSheet extends StatelessWidget {
                                 Text(
                                   task.title as String,
                                   style: TextStyle(
-                                    color:
-                                        isCompleted ? textSecondary : textPrimary,
+                                    color: isCompleted
+                                        ? textSecondary
+                                        : textPrimary,
                                     fontSize: 14,
                                     height: 1.45,
                                     decoration: isCompleted
@@ -642,6 +693,8 @@ class _TasksSheet extends StatelessWidget {
     );
   }
 }
+
+// ── Task icon ─────────────────────────────────────────────────────────────────
 
 class _TaskIcon extends StatelessWidget {
   final bool isCompleted;
@@ -702,7 +755,7 @@ class _TaskIcon extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          color: AppColors.border(isDark),
           width: 2,
         ),
       ),
@@ -710,9 +763,7 @@ class _TaskIcon extends StatelessWidget {
         child: Text(
           '${index + 1}',
           style: TextStyle(
-            color: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textSecondaryLight,
+            color: AppColors.textSecondary(isDark),
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),

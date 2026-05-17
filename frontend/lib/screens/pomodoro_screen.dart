@@ -14,11 +14,13 @@ class PomodoroScreen extends StatefulWidget {
 }
 
 class _PomodoroScreenState extends State<PomodoroScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AppState _appState;
   bool _dialogShown = false;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
+  late AnimationController _glowCtrl;
+  late Animation<double> _glowAnim;
 
   @override
   void initState() {
@@ -28,10 +30,18 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
     _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
     _pulseAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+    _glowAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
   }
 
@@ -39,6 +49,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   void dispose() {
     _appState.removeListener(_onStateChange);
     _pulseCtrl.dispose();
+    _glowCtrl.dispose();
     super.dispose();
   }
 
@@ -64,12 +75,12 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         onComplete: () {
           Navigator.pop(ctx);
           _dialogShown = false;
-          _appState.completeCurrentTask(); // marca tarea e inicia descanso
+          _appState.completeCurrentTask();
         },
         onContinue: () {
           Navigator.pop(ctx);
           _dialogShown = false;
-          _appState.continueCurrentTask(); // misma tarea, inicia descanso
+          _appState.continueCurrentTask();
         },
       ),
     );
@@ -81,13 +92,18 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     final isDark = state.isDarkMode;
     final isBreak = state.isBreak;
     final isLongBreak = state.isLongBreak;
+    final isActive = state.isRunning || isBreak;
 
-    // Color del arco según la fase
     final phaseColor = isLongBreak
         ? AppColors.longBreakColor
         : isBreak
             ? AppColors.breakColor
             : AppColors.primary;
+    final phaseGlow = isLongBreak
+        ? AppColors.longBreakGlow
+        : isBreak
+            ? AppColors.breakGlow
+            : AppColors.primaryGlow;
     final phaseSoft = isLongBreak
         ? AppColors.longBreakSoft
         : isBreak
@@ -95,16 +111,11 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             : AppColors.primarySoft;
 
     final trackColor = isDark ? AppColors.trackDark : AppColors.trackLight;
-    final bgColor = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final textPrimary =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final textSecondary =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bgColor = AppColors.bg(isDark);
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
 
-    // Cuántos dots mostrar llenos: 4 al inicio de un descanso largo
-    final dotsCompleted =
-        isLongBreak ? 4 : state.completedInCycle;
-
+    final dotsCompleted = isLongBreak ? 4 : state.completedInCycle;
     final currentTask = state.activeProject?.currentTask;
 
     return Scaffold(
@@ -131,9 +142,20 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             children: [
               const SizedBox(height: 16),
 
-              // Chip de fase
+              // Phase chip with border + slide-fade transition
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 350),
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                        parent: anim, curve: Curves.easeOut)),
+                    child: child,
+                  ),
+                ),
                 child: Container(
                   key: ValueKey(state.phase),
                   padding:
@@ -141,6 +163,9 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                   decoration: BoxDecoration(
                     color: phaseSoft,
                     borderRadius: BorderRadius.circular(40),
+                    border: Border.all(
+                      color: phaseColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     _phaseLabel(state.phase),
@@ -156,7 +181,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
               const SizedBox(height: 16),
 
-              // Indicador de ciclo: 4 puntos + etiqueta de sesión
+              // Cycle indicator with pill-shaped dots
               _CycleIndicator(
                 completed: dotsCompleted,
                 sessionNumber: state.sessionNumber,
@@ -167,71 +192,104 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
               const SizedBox(height: 24),
 
-              // Timer circular
+              // Timer with animated background glow
               Expanded(
                 child: Center(
-                  child: ScaleTransition(
-                    scale: state.isRunning
-                        ? _pulseAnim
-                        : const AlwaysStoppedAnimation(1.0),
-                    child: SizedBox(
-                      width: 260,
-                      height: 260,
-                      child: CustomPaint(
-                        painter: _TimerPainter(
-                          progress: state.timerProgress,
-                          color: phaseColor,
-                          trackColor: trackColor,
-                          strokeWidth: 12,
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                state.formattedTime,
-                                style: TextStyle(
-                                  color: textPrimary,
-                                  fontSize: 58,
-                                  fontWeight: FontWeight.w300,
-                                  letterSpacing: -2,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ],
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_pulseCtrl, _glowCtrl]),
+                    builder: (context, _) {
+                      final glowIntensity = isActive ? _glowAnim.value : 0.0;
+                      return ScaleTransition(
+                        scale: state.isRunning
+                            ? _pulseAnim
+                            : const AlwaysStoppedAnimation(1.0),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Radial background glow
+                            if (isActive)
+                              CustomPaint(
+                                size: const Size(300, 300),
+                                painter: _BackgroundGlowPainter(
+                                  color: phaseGlow,
+                                  intensity: glowIntensity,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                isLongBreak
-                                    ? 'descanso largo'
-                                    : isBreak
-                                        ? 'descansa'
-                                        : 'minutos',
-                                style: TextStyle(
-                                    color: textSecondary, fontSize: 13),
+                            // Timer ring
+                            Container(
+                              width: 260,
+                              height: 260,
+                              decoration: isActive
+                                  ? BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: phaseColor.withValues(
+                                              alpha: 0.18 * glowIntensity),
+                                          blurRadius: 50,
+                                          spreadRadius: 8,
+                                        ),
+                                      ],
+                                    )
+                                  : null,
+                              child: CustomPaint(
+                                painter: _TimerPainter(
+                                  progress: state.timerProgress,
+                                  color: phaseColor,
+                                  glowColor: isActive ? phaseColor : null,
+                                  trackColor: trackColor,
+                                  strokeWidth: 12,
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        state.formattedTime,
+                                        style: TextStyle(
+                                          color: textPrimary,
+                                          fontSize: 58,
+                                          fontWeight: FontWeight.w300,
+                                          letterSpacing: -2,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isLongBreak
+                                            ? 'descanso largo'
+                                            : isBreak
+                                                ? 'descansa'
+                                                : 'minutos',
+                                        style: TextStyle(
+                                          color: textSecondary,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
 
-              // Chip de tarea actual
+              // Current task chip
               if (currentTask != null)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                    color: AppColors.card(isDark),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark
-                          ? AppColors.borderDark
-                          : AppColors.borderLight,
-                    ),
+                    border: Border.all(color: AppColors.border(isDark)),
                   ),
                   child: Row(
                     children: [
@@ -256,14 +314,15 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
               const SizedBox(height: 24),
 
-              // Botón principal de acción
+              // Main action button
               SizedBox(
                 width: double.infinity,
                 height: 60,
-                child: _buildActionButton(state, phaseColor, isBreak, isLongBreak),
+                child: _buildActionButton(
+                    state, phaseColor, isBreak, isLongBreak),
               ),
 
-              // Fila de acciones secundarias
+              // Secondary actions
               if (state.phase == PomodoroPhase.working ||
                   state.phase == PomodoroPhase.paused ||
                   state.isBreak) ...[
@@ -271,32 +330,26 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Pausar solo cuando está corriendo
                     if (state.phase == PomodoroPhase.working) ...[
-                      TextButton.icon(
-                        onPressed: () => state.pausePomodoro(),
-                        icon: Icon(Icons.pause_rounded,
-                            size: 16, color: textSecondary),
-                        label: Text('Pausar',
-                            style:
-                                TextStyle(color: textSecondary, fontSize: 13)),
+                      _SecondaryBtn(
+                        icon: Icons.pause_rounded,
+                        label: 'Pausar',
+                        color: textSecondary,
+                        onTap: () => state.pausePomodoro(),
                       ),
                       Text(' · ',
                           style:
                               TextStyle(color: textSecondary, fontSize: 13)),
                     ],
-                    TextButton.icon(
-                      onPressed: () => state.skipPhase(),
-                      icon: Icon(Icons.skip_next_rounded,
-                          size: 16, color: textSecondary),
-                      label: Text(
-                        isLongBreak
-                            ? 'Saltar descanso largo'
-                            : isBreak
-                                ? 'Saltar descanso'
-                                : 'Saltar fase',
-                        style: TextStyle(color: textSecondary, fontSize: 13),
-                      ),
+                    _SecondaryBtn(
+                      icon: Icons.skip_next_rounded,
+                      label: isLongBreak
+                          ? 'Saltar descanso largo'
+                          : isBreak
+                              ? 'Saltar descanso'
+                              : 'Saltar fase',
+                      color: textSecondary,
+                      onTap: () => state.skipPhase(),
                     ),
                   ],
                 ),
@@ -329,8 +382,8 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           backgroundColor: breakBg,
           disabledBackgroundColor: breakBg,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -340,24 +393,26 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             Text(
               breakLabel,
               style: TextStyle(
-                  fontSize: 17, fontWeight: FontWeight.w600, color: breakFg),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: breakFg),
             ),
           ],
         ),
       );
     }
 
-    // Proyecto 100% completo — no permitir más pomodoros
     if (state.activeProject?.isCompleted == true &&
         state.phase == PomodoroPhase.idle) {
       return ElevatedButton(
         onPressed: null,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.success.withValues(alpha: 0.12),
-          disabledBackgroundColor: AppColors.success.withValues(alpha: 0.12),
+          disabledBackgroundColor:
+              AppColors.success.withValues(alpha: 0.12),
           elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -384,8 +439,8 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -393,7 +448,8 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             Icon(Icons.play_arrow_rounded, size: 26),
             SizedBox(width: 8),
             Text('Comenzar',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                style:
+                    TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -404,10 +460,11 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         onPressed: null,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.12),
+          disabledBackgroundColor:
+              AppColors.primary.withValues(alpha: 0.12),
           elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -434,8 +491,8 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -459,11 +516,36 @@ class _PomodoroScreenState extends State<PomodoroScreen>
       };
 }
 
-// ── Indicador de ciclo ────────────────────────────────────────────────────────
+// ── Secondary button ──────────────────────────────────────────────────────────
+
+class _SecondaryBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SecondaryBtn({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16, color: color),
+      label: Text(label, style: TextStyle(color: color, fontSize: 13)),
+    );
+  }
+}
+
+// ── Cycle indicator with pill dots ────────────────────────────────────────────
 
 class _CycleIndicator extends StatelessWidget {
-  final int completed; // 0–4
-  final int sessionNumber; // 1–4 (solo relevante al trabajar)
+  final int completed;
+  final int sessionNumber;
   final Color phaseColor;
   final Color textSecondary;
   final bool isBreak;
@@ -487,11 +569,11 @@ class _CycleIndicator extends StatelessWidget {
             return AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut,
-              margin: const EdgeInsets.symmetric(horizontal: 5),
-              width: filled ? 10 : 8,
-              height: filled ? 10 : 8,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: filled ? 20 : 8,
+              height: 8,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(4),
                 color: filled
                     ? phaseColor
                     : phaseColor.withValues(alpha: 0.2),
@@ -517,17 +599,50 @@ class _CycleIndicator extends StatelessWidget {
   }
 }
 
-// ── Pintor del arco circular ──────────────────────────────────────────────────
+// ── Background radial glow ────────────────────────────────────────────────────
+
+class _BackgroundGlowPainter extends CustomPainter {
+  final Color color;
+  final double intensity;
+
+  const _BackgroundGlowPainter({
+    required this.color,
+    required this.intensity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          color.withValues(alpha: 0.28 * intensity),
+          color.withValues(alpha: 0.0),
+        ],
+      ).createShader(
+          Rect.fromCircle(center: center, radius: size.width * 0.5));
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(_BackgroundGlowPainter old) =>
+      old.intensity != intensity || old.color != color;
+}
+
+// ── Timer arc painter with optional glow ─────────────────────────────────────
 
 class _TimerPainter extends CustomPainter {
   final double progress;
   final Color color;
+  final Color? glowColor;
   final Color trackColor;
   final double strokeWidth;
 
   const _TimerPainter({
     required this.progress,
     required this.color,
+    this.glowColor,
     required this.trackColor,
     required this.strokeWidth,
   });
@@ -535,7 +650,8 @@ class _TimerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (math.min(size.width, size.height) / 2) - strokeWidth / 2;
+    final radius =
+        (math.min(size.width, size.height) / 2) - strokeWidth / 2;
 
     canvas.drawCircle(
       center,
@@ -547,10 +663,30 @@ class _TimerPainter extends CustomPainter {
     );
 
     if (progress > 0) {
+      final sweepAngle = 2 * math.pi * progress;
+
+      // Glow layer
+      if (glowColor != null) {
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          -math.pi / 2,
+          sweepAngle,
+          false,
+          Paint()
+            ..color = glowColor!.withValues(alpha: 0.45)
+            ..strokeWidth = strokeWidth + 8
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..maskFilter =
+                const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+      }
+
+      // Main arc
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
         -math.pi / 2,
-        2 * math.pi * progress,
+        sweepAngle,
         false,
         Paint()
           ..color = color
@@ -563,10 +699,12 @@ class _TimerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TimerPainter old) =>
-      old.progress != progress || old.color != color;
+      old.progress != progress ||
+      old.color != color ||
+      old.glowColor != glowColor;
 }
 
-// ── Modal de confirmación de tarea ───────────────────────────────────────────
+// ── Task complete dialog ──────────────────────────────────────────────────────
 
 class _TaskCompleteDialog extends StatelessWidget {
   final String taskTitle;
@@ -582,15 +720,14 @@ class _TaskCompleteDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<AppState>().isDarkMode;
-    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final textPrimary =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final textSecondary =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bg = AppColors.card(isDark);
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
 
     return Dialog(
       backgroundColor: bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
@@ -621,8 +758,8 @@ class _TaskCompleteDialog extends StatelessWidget {
             if (taskTitle.isNotEmpty)
               Text(
                 taskTitle,
-                style:
-                    TextStyle(color: textSecondary, fontSize: 14, height: 1.4),
+                style: TextStyle(
+                    color: textSecondary, fontSize: 14, height: 1.4),
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
@@ -641,8 +778,8 @@ class _TaskCompleteDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Sí, la completé',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 10),
@@ -653,13 +790,14 @@ class _TaskCompleteDialog extends StatelessWidget {
                 onPressed: onContinue,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary, width: 1.5),
+                  side: const BorderSide(
+                      color: AppColors.primary, width: 1.5),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Todavía no',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],

@@ -52,15 +52,8 @@ class Project {
     return tasks.length;
   }
 
-  // Desde GET /projects (lista, sin tasks)
-  factory Project.fromApiList(Map<String, dynamic> json) => Project(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        description: json['description'] as String? ?? '',
-        status: json['status'] as String? ?? 'active',
-        totalCount: json['total_tasks'] as int? ?? 0,
-        completedCount: json['completed_tasks'] as int? ?? 0,
-      );
+  // Desde GET /projects (lista, ya incluye tasks con json_agg)
+  factory Project.fromApiList(Map<String, dynamic> json) => Project.fromApi(json);
 
   // Desde GET /projects/:id o POST /projects (con tasks)
   factory Project.fromApi(Map<String, dynamic> json) => Project(

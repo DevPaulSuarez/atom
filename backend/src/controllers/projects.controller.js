@@ -6,8 +6,10 @@ exports.listProjects = async (req, res, next) => {
   try {
     const { rows } = await db.query(
       `SELECT p.*,
-         COUNT(t.id)::int                                  AS total_tasks,
-         COUNT(t.id) FILTER (WHERE t.is_completed)::int   AS completed_tasks
+         COALESCE(
+           json_agg(t ORDER BY t.order_index)
+           FILTER (WHERE t.id IS NOT NULL), '[]'
+         ) AS tasks
        FROM projects p
        LEFT JOIN micro_tasks t ON p.id = t.project_id
        WHERE p.user_id = $1
