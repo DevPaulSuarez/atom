@@ -18,6 +18,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     with TickerProviderStateMixin {
   late AppState _appState;
   bool _dialogShown = false;
+  bool _breakDialogShown = false;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
   late AnimationController _glowCtrl;
@@ -76,6 +77,30 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         }
       });
     }
+    if (_appState.phase == PomodoroPhase.breakDone &&
+        !_breakDialogShown &&
+        mounted) {
+      _breakDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _appState.phase == PomodoroPhase.breakDone) {
+          _showBreakDoneModal();
+        }
+      });
+    }
+  }
+
+  void _showBreakDoneModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _BreakDoneDialog(
+        onStart: () {
+          Navigator.pop(ctx);
+          _breakDialogShown = false;
+          _appState.dismissBreak();
+        },
+      ),
+    );
   }
 
   void _showCompletionModal() {
@@ -579,6 +604,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         PomodoroPhase.shortBreak => 'DESCANSO CORTO',
         PomodoroPhase.longBreak => 'DESCANSO LARGO',
         PomodoroPhase.askComplete => 'SESIÓN COMPLETA',
+        PomodoroPhase.breakDone => 'DESCANSASTE',
         PomodoroPhase.idle => 'LISTO',
       };
 }
@@ -1031,6 +1057,78 @@ class _MotivationScreen extends StatelessWidget {
 }
 
 // ── Task complete dialog ──────────────────────────────────────────────────────
+
+class _BreakDoneDialog extends StatelessWidget {
+  final VoidCallback onStart;
+
+  const _BreakDoneDialog({required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.watch<AppState>().isDarkMode;
+    final bg = AppColors.card(isDark);
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
+
+    return Dialog(
+      backgroundColor: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppColors.breakSoft,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(Icons.coffee_rounded,
+                  size: 34, color: AppColors.breakColor),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '¡Descanso terminado!',
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Es hora de retomar el enfoque. ¿Listo para el siguiente Pomodoro?',
+              style: TextStyle(color: textSecondary, fontSize: 14, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: onStart,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('¡Vamos!',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _TaskCompleteDialog extends StatelessWidget {
   final String taskTitle;

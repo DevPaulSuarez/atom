@@ -597,10 +597,11 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Center(
               child: Container(
                 width: 40,
@@ -752,6 +753,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

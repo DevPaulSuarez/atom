@@ -11,7 +11,7 @@ import '../services/api_service.dart';
 
 export '../services/api_service.dart' show ApiException;
 
-enum PomodoroPhase { idle, working, paused, shortBreak, longBreak, askComplete }
+enum PomodoroPhase { idle, working, paused, shortBreak, longBreak, askComplete, breakDone }
 
 class AppState extends ChangeNotifier {
   final _api = ApiService();
@@ -436,12 +436,19 @@ class AppState extends ChangeNotifier {
       _completedPomodoros++;
       _phase = PomodoroPhase.askComplete;
       _persistPomodoroCount();
+      _playAlarm();
     } else if (_phase == PomodoroPhase.shortBreak ||
         _phase == PomodoroPhase.longBreak) {
-      _phase = PomodoroPhase.idle;
+      _phase = PomodoroPhase.breakDone;
       _remainingSeconds = _kWork;
+      _playAlarm();
     }
-    _playAlarm();
+    notifyListeners();
+  }
+
+  void dismissBreak() {
+    stopAlarm();
+    _phase = PomodoroPhase.idle;
     notifyListeners();
   }
 
