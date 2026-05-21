@@ -401,6 +401,13 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void playCelebration() {
+    if (kIsWeb) return;
+    try {
+      _ringtone.playNotification(volume: 0.5);
+    } catch (_) {}
+  }
+
   // ── Timer ──────────────────────────────────────────────────────────────────
 
   void _startTimer() {

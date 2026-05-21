@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +22,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   late Animation<double> _pulseAnim;
   late AnimationController _glowCtrl;
   late Animation<double> _glowAnim;
+  late ConfettiController _confettiCtrl;
 
   @override
   void initState() {
@@ -43,6 +45,10 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     _glowAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
+
+    _confettiCtrl = ConfettiController(
+      duration: const Duration(milliseconds: 1800),
+    );
   }
 
   @override
@@ -50,7 +56,13 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     _appState.removeListener(_onStateChange);
     _pulseCtrl.dispose();
     _glowCtrl.dispose();
+    _confettiCtrl.dispose();
     super.dispose();
+  }
+
+  void _celebrate() {
+    _confettiCtrl.play();
+    _appState.playCelebration();
   }
 
   void _onStateChange() {
@@ -76,6 +88,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           Navigator.pop(ctx);
           _dialogShown = false;
           _appState.completeCurrentTask();
+          _celebrate();
         },
         onContinue: () {
           Navigator.pop(ctx);
@@ -134,7 +147,9 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     final currentTask = state.activeProject?.currentTask;
     final workTask = state.activeProject?.activeWorkTask;
 
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -387,7 +402,32 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           ),
         ),
       ),
-    );
+        ), // Scaffold
+
+        // Confetti overlay — burst desde el centro superior
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiCtrl,
+            blastDirection: math.pi / 2, // hacia abajo
+            blastDirectionality: BlastDirectionality.explosive,
+            emissionFrequency: 0.06,
+            numberOfParticles: 18,
+            gravity: 0.3,
+            maxBlastForce: 20,
+            minBlastForce: 8,
+            colors: const [
+              AppColors.primary,
+              AppColors.breakColor,
+              AppColors.longBreakColor,
+              AppColors.success,
+              Color(0xFFFFD700), // dorado
+            ],
+            shouldLoop: false,
+          ),
+        ),
+      ], // Stack children
+    ); // Stack
   }
 
   Widget _buildActionButton(
