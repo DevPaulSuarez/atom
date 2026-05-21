@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/micro_task.dart';
 import '../models/project.dart';
 import '../services/api_service.dart';
 
@@ -28,6 +29,11 @@ class AppState extends ChangeNotifier {
   bool _authLoaded = false;
   bool _projectsLoading = false;
   String? _projectsError;
+  int _incompleteCount = 0;
+  bool _isSplitting = false;
+  bool _showMotivation = false;
+  String _coachMessage = '';
+  int _splitCount = 0;
 
   static const _kWork = 25 * 60;
   static const _kShortBreak = 5 * 60;
@@ -55,7 +61,13 @@ class AppState extends ChangeNotifier {
   bool get projectsLoading => _projectsLoading;
   String? get projectsError => _projectsError;
   String get userName => _api.userName;
+  bool get isTester => _api.isTester;
   bool get hasSeenOnboarding => _hasSeenOnboarding;
+  bool get isSplitting => _isSplitting;
+  bool get showMotivation => _showMotivation;
+  String get coachMessage => _coachMessage;
+  int get splitCount => _splitCount;
+  int get incompleteCount => _incompleteCount;
 
   String get formattedTime {
     final m = _remainingSeconds ~/ 60;
@@ -103,10 +115,12 @@ class AppState extends ChangeNotifier {
         'password': password,
       }) as Map<String, dynamic>;
 
+      final user = data['user'] as Map<String, dynamic>;
       await _api.saveSession(
         data['accessToken'] as String,
         data['refreshToken'] as String,
-        (data['user'] as Map<String, dynamic>)['name'] as String,
+        user['name'] as String,
+        isTester: (user['is_tester'] as dynamic) == true || (user['is_tester'] as dynamic) == 1,
       );
       await _loadProjects();
       notifyListeners();
@@ -125,10 +139,12 @@ class AppState extends ChangeNotifier {
         'password': password,
       }) as Map<String, dynamic>;
 
+      final user = data['user'] as Map<String, dynamic>;
       await _api.saveSession(
         data['accessToken'] as String,
         data['refreshToken'] as String,
-        (data['user'] as Map<String, dynamic>)['name'] as String,
+        user['name'] as String,
+        isTester: (user['is_tester'] as dynamic) == true || (user['is_tester'] as dynamic) == 1,
       );
       await _loadProjects();
       notifyListeners();
@@ -164,6 +180,11 @@ class AppState extends ChangeNotifier {
     stopAlarm();
     _phase = PomodoroPhase.idle;
     _completedPomodoros = 0;
+    _incompleteCount = 0;
+    _isSplitting = false;
+    _showMotivation = false;
+    _coachMessage = '';
+    _splitCount = 0;
   }
 
   // ── Projects ───────────────────────────────────────────────────────────────
@@ -203,16 +224,18 @@ class AppState extends ChangeNotifier {
       _phase = PomodoroPhase.idle;
       _remainingSeconds = _kWork;
       _completedPomodoros = 0;
+      _incompleteCount = 0;
     }
     _activeProject = project;
     notifyListeners();
   }
 
-  Future<String?> addProject(String name, String description) async {
+  Future<String?> addProject(String name, String description, String motivation) async {
     try {
       final data = await _api.post('/projects', {
         'name': name,
         'description': description,
+        'motivation': motivation,
       }) as Map<String, dynamic>;
 
       final project = Project.fromApi(data);
@@ -266,12 +289,21 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> completeCurrentTask() async {
-    final task = _activeProject?.currentTask;
-    if (task != null) {
-      task.isCompleted = true;
+    final workTask = _activeProject?.activeWorkTask;
+    if (workTask != null) {
+      workTask.isCompleted = true;
+      _incompleteCount = 0;
+
+      // Si era una subtarea, verificar si el padre se completa también
+      if (workTask.parentId != null) {
+        final parent = _activeProject?.currentTask;
+        if (parent != null && parent.id == workTask.parentId && parent.allSubtasksDone) {
+          parent.isCompleted = true;
+        }
+      }
+
       try {
-        await _api.patch('/tasks/${task.id}', {'isCompleted': true});
-        // Actualizar status del proyecto si todas completadas
+        await _api.patch('/tasks/${workTask.id}', {'isCompleted': true});
         final proj = _activeProject;
         if (proj != null && proj.tasks.every((t) => t.isCompleted)) {
           proj.status = 'completed';
@@ -283,9 +315,49 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void continueCurrentTask() {
+  Future<void> continueCurrentTask() async {
+    _incompleteCount++;
     stopAlarm();
-    _startBreak();
+    final workTask = _activeProject?.activeWorkTask;
+    // No dividir subtareas (máximo 2 niveles)
+    if (_incompleteCount >= 2 && workTask?.parentId == null) {
+      await _splitCurrentTask();
+    } else {
+      _startBreak();
+    }
+  }
+
+  Future<void> _splitCurrentTask() async {
+    final task = _activeProject?.activeWorkTask;
+    if (task == null || _activeProject == null) {
+      _incompleteCount = 0;
+      _startBreak();
+      return;
+    }
+    _phase = PomodoroPhase.idle;
+    _isSplitting = true;
+    notifyListeners();
+
+    try {
+      final data = await _api.post('/tasks/${task.id}/split', {}) as Map<String, dynamic>;
+      final flat = (data['tasks'] as List)
+          .map((t) => MicroTask.fromApi(t as Map<String, dynamic>))
+          .toList();
+      _activeProject!.tasks = Project.buildHierarchy(flat);
+      _coachMessage = data['coachMessage'] as String? ?? '';
+      _splitCount = (data['splitCount'] as num?)?.toInt() ?? 0;
+      _incompleteCount = 0;
+      _isSplitting = false;
+      _phase = PomodoroPhase.idle;
+      _remainingSeconds = _kWork;
+      _showMotivation = true;
+    } catch (_) {
+      _incompleteCount = 0;
+      _isSplitting = false;
+      _phase = PomodoroPhase.idle;
+      _remainingSeconds = _kWork;
+    }
+    notifyListeners();
   }
 
   void _startBreak() {
@@ -353,9 +425,10 @@ class AppState extends ChangeNotifier {
 
   void _onPhaseEnd() {
     if (_phase == PomodoroPhase.working) {
-      _activeProject?.currentTask?.pomodorosCount++;
+      _activeProject?.activeWorkTask?.pomodorosCount++;
       _completedPomodoros++;
       _phase = PomodoroPhase.askComplete;
+      _persistPomodoroCount();
     } else if (_phase == PomodoroPhase.shortBreak ||
         _phase == PomodoroPhase.longBreak) {
       _phase = PomodoroPhase.idle;
@@ -363,6 +436,19 @@ class AppState extends ChangeNotifier {
     }
     _playAlarm();
     notifyListeners();
+  }
+
+  void dismissMotivation() {
+    _showMotivation = false;
+    notifyListeners();
+  }
+
+  Future<void> _persistPomodoroCount() async {
+    final task = _activeProject?.activeWorkTask;
+    if (task == null) return;
+    try {
+      await _api.patch('/tasks/${task.id}', {'pomodorosCount': task.pomodorosCount});
+    } catch (_) {}
   }
 
   // ── Cache offline ──────────────────────────────────────────────────────────

@@ -71,7 +71,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _TaskCompleteDialog(
-        taskTitle: _appState.activeProject?.currentTask?.title ?? '',
+        taskTitle: _appState.activeProject?.activeWorkTask?.title ?? '',
         onComplete: () {
           Navigator.pop(ctx);
           _dialogShown = false;
@@ -90,6 +90,21 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isDark = state.isDarkMode;
+
+    if (state.isSplitting) {
+      return _SplittingLoadingScreen(isDark: isDark);
+    }
+
+    if (state.showMotivation) {
+      return _MotivationScreen(
+        motivation: state.activeProject?.motivation ?? '',
+        coachMessage: state.coachMessage,
+        splitCount: state.splitCount,
+        isDark: isDark,
+        onRetry: () => state.dismissMotivation(),
+      );
+    }
+
     final isBreak = state.isBreak;
     final isLongBreak = state.isLongBreak;
     final isActive = state.isRunning || isBreak;
@@ -117,6 +132,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
     final dotsCompleted = isLongBreak ? 4 : state.completedInCycle;
     final currentTask = state.activeProject?.currentTask;
+    final workTask = state.activeProject?.activeWorkTask;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -124,11 +140,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         backgroundColor: bgColor,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () {
-            if (state.isRunning) state.pausePomodoro();
-            state.stopAlarm();
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           state.activeProject?.name ?? 'Pomodoro',
@@ -282,7 +294,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
               ),
 
               // Current task chip
-              if (currentTask != null)
+              if (workTask != null)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -297,15 +309,29 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                           size: 16, color: phaseColor),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          currentTask.title,
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (workTask.parentId != null &&
+                                currentTask != null)
+                              Text(
+                                currentTask.title,
+                                style: TextStyle(
+                                  color: textSecondary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            Text(
+                              workTask.title,
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -322,10 +348,11 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                     state, phaseColor, isBreak, isLongBreak),
               ),
 
-              // Secondary actions
-              if (state.phase == PomodoroPhase.working ||
-                  state.phase == PomodoroPhase.paused ||
-                  state.isBreak) ...[
+              // Secondary actions — solo visibles para el usuario tester
+              if (state.isTester &&
+                  (state.phase == PomodoroPhase.working ||
+                      state.phase == PomodoroPhase.paused ||
+                      state.isBreak)) ...[
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -702,6 +729,265 @@ class _TimerPainter extends CustomPainter {
       old.progress != progress ||
       old.color != color ||
       old.glowColor != glowColor;
+}
+
+// ── Splitting loading screen ──────────────────────────────────────────────────
+
+class _SplittingLoadingScreen extends StatelessWidget {
+  final bool isDark;
+  const _SplittingLoadingScreen({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bg(isDark),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              color: AppColors.primary,
+              strokeWidth: 2.5,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'La IA está analizando la tarea...',
+              style: TextStyle(
+                color: AppColors.textSecondary(isDark),
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Motivation / coach screen ─────────────────────────────────────────────────
+
+class _MotivationScreen extends StatelessWidget {
+  final String motivation;
+  final String coachMessage;
+  final int splitCount;
+  final bool isDark;
+  final VoidCallback onRetry;
+
+  const _MotivationScreen({
+    required this.motivation,
+    required this.coachMessage,
+    required this.splitCount,
+    required this.isDark,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimary(isDark);
+    final cardColor = AppColors.card(isDark);
+    final borderColor = AppColors.border(isDark);
+
+    return Scaffold(
+      backgroundColor: AppColors.bg(isDark),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(28, 48, 28, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icono
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: const Icon(
+                  Icons.psychology_rounded,
+                  size: 36,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Título
+              Text(
+                'Un momento de bloqueo',
+                style: TextStyle(
+                  color: textPrimary,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                  height: 1.2,
+                ),
+              ),
+              if (splitCount > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Dividí la tarea en $splitCount pasos más pequeños.',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 32),
+
+              // Motivación del proyecto
+              if (motivation.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.flag_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'POR QUÉ EMPEZASTE',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        motivation,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Mensaje del coach
+              if (coachMessage.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: AppColors.breakColor.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.record_voice_over_rounded,
+                              size: 15,
+                              color: AppColors.breakColor,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Tu coach',
+                            style: TextStyle(
+                              color: AppColors.breakColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        coachMessage,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 16,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 40),
+
+              // Botón volver a intentar
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: ElevatedButton(
+                    onPressed: onRetry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_arrow_rounded, size: 24),
+                        SizedBox(width: 10),
+                        Text(
+                          'Volver a intentar',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Task complete dialog ──────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ router.post('/',
   [
     body('name').trim().notEmpty().isLength({ max: 255 }),
     body('description').optional().trim().isLength({ max: 2000 }),
+    body('motivation').optional().trim().isLength({ max: 500 }),
   ],
   projectsController.createProject
 );

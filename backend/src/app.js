@@ -10,6 +10,7 @@ const authRouter = require('./routes/auth.routes');
 const projectsRouter = require('./routes/projects.routes');
 const tasksRouter = require('./routes/tasks.routes');
 const sessionsRouter = require('./routes/sessions.routes');
+const streakRouter   = require('./routes/streak.routes');
 const { errorMiddleware } = require('./middleware/error.middleware');
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/auth',     authRouter);
 app.use('/projects', projectsRouter);
 app.use('/tasks',    tasksRouter);
 app.use('/sessions', sessionsRouter);
+app.use('/streak',   streakRouter);
 
 // 404 genérico
 app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));

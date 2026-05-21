@@ -7,8 +7,13 @@ const router = Router();
 router.use(authenticate);
 
 router.patch('/:id',
-  [body('isCompleted').isBoolean()],
+  [
+    body('isCompleted').optional().isBoolean(),
+    body('pomodorosCount').optional().isInt({ min: 0 }),
+  ],
   tasksController.updateTask
 );
+
+router.post('/:id/split', tasksController.splitTask);
 
 module.exports = router;

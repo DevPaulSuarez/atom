@@ -1,0 +1,2 @@
+ALTER TABLE micro_tasks ADD COLUMN parent_id VARCHAR(36) NULL DEFAULT NULL;
+ALTER TABLE micro_tasks ADD CONSTRAINT fk_parent_task FOREIGN KEY (parent_id) REFERENCES micro_tasks(id) ON DELETE CASCADE;

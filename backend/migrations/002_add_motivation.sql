@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN motivation VARCHAR(500) NOT NULL DEFAULT '';

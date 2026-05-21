@@ -16,39 +16,48 @@ class ApiService {
   static const _kAccess = 'atom_access_token';
   static const _kRefresh = 'atom_refresh_token';
   static const _kName = 'atom_user_name';
+  static const _kTester = 'atom_is_tester';
 
   String? _accessToken;
   String? _refreshToken;
   String? _userName;
+  bool _isTester = false;
 
   bool get hasSession => _accessToken != null;
   String get userName => _userName ?? '';
+  bool get isTester => _isTester;
 
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
     _accessToken = prefs.getString(_kAccess);
     _refreshToken = prefs.getString(_kRefresh);
     _userName = prefs.getString(_kName);
+    _isTester = prefs.getBool(_kTester) ?? false;
   }
 
-  Future<void> saveSession(String access, String refresh, String name) async {
+  Future<void> saveSession(
+      String access, String refresh, String name, {bool isTester = false}) async {
     _accessToken = access;
     _refreshToken = refresh;
     _userName = name;
+    _isTester = isTester;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAccess, access);
     await prefs.setString(_kRefresh, refresh);
     await prefs.setString(_kName, name);
+    await prefs.setBool(_kTester, isTester);
   }
 
   Future<void> clearSession() async {
     _accessToken = null;
     _refreshToken = null;
     _userName = null;
+    _isTester = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAccess);
     await prefs.remove(_kRefresh);
     await prefs.remove(_kName);
+    await prefs.remove(_kTester);
   }
 
   Map<String, String> get _headers => {

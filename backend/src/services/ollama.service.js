@@ -130,4 +130,106 @@ const generateMicroTasks = async (name, description) => {
   }
 };
 
-module.exports = { generateMicroTasks };
+const SPLIT_SYSTEM_PROMPT = `Eres un experto en productividad. Una tarea está bloqueada y necesita dividirse en pasos más pequeños.
+
+Reglas:
+- Genera exactamente 3 subtareas concretas y accionables
+- Cada subtarea toma 15-30 minutos
+- Empieza con verbo de acción: Identificar / Implementar / Conectar / Crear / Verificar
+- Las 3 subtareas juntas completan la tarea original
+
+Responde ÚNICAMENTE con JSON válido:
+{"subtasks":["Subtarea 1","Subtarea 2","Subtarea 3"]}`;
+
+const splitBlockedTask = async (taskTitle, projectName, projectDescription) => {
+  try {
+    if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY no configurada');
+
+    const response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.GROQ_MODEL,
+        messages: [
+          { role: 'system', content: SPLIT_SYSTEM_PROMPT },
+          { role: 'user', content: `Proyecto: ${projectName}\nDescripción: ${projectDescription || ''}\nTarea bloqueada: ${taskTitle}` },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 512,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+
+    if (!response.ok) throw new Error(`Groq HTTP ${response.status}`);
+
+    const data = await response.json();
+    const parsed = JSON.parse(data.choices[0].message.content);
+
+    if (!Array.isArray(parsed?.subtasks) || parsed.subtasks.length < 2) {
+      throw new Error('Formato inválido');
+    }
+
+    console.log(`[Groq split] Generadas ${parsed.subtasks.length} subtareas para: "${taskTitle}"`);
+    return parsed.subtasks.map(String).filter(Boolean).slice(0, 4);
+  } catch (err) {
+    console.warn(`[Groq split] Falló (${err.message}), usando subtareas predeterminadas`);
+    return [
+      `Identificar el punto exacto de bloqueo en: ${taskTitle}`,
+      `Implementar la parte principal de: ${taskTitle}`,
+      `Verificar y finalizar: ${taskTitle}`,
+    ];
+  }
+};
+
+const COACH_SYSTEM_PROMPT = `Eres un coach de productividad que habla como un amigo cercano. El usuario se atascó y ya dividió la tarea. Necesita sentir que puede seguir.
+
+Escribe UNA sola oración corta (máximo 20 palabras) que:
+- Sea honesta y cálida, como si viniera del corazón
+- Lo anime a no rendirse y dar el primer paso ahora mismo
+- Evite clichés como "tú puedes", "ánimo", "excelente"
+
+Solo la oración. Sin comillas, sin signos de exclamación múltiples, en español, tuteo.`;
+
+const generateCoachMessage = async (taskTitle, motivation) => {
+  try {
+    if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY no configurada');
+
+    const userContent = motivation
+      ? `Tarea bloqueada: "${taskTitle}"\nMotivación del usuario: "${motivation}"`
+      : `Tarea bloqueada: "${taskTitle}"`;
+
+    const response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.GROQ_MODEL,
+        messages: [
+          { role: 'system', content: COACH_SYSTEM_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0.7,
+        max_tokens: 200,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) throw new Error(`Groq HTTP ${response.status}`);
+
+    const data = await response.json();
+    const message = data.choices[0].message.content.trim();
+    console.log(`[Groq coach] Mensaje generado para: "${taskTitle}"`);
+    return message;
+  } catch (err) {
+    console.warn(`[Groq coach] Falló (${err.message}), usando mensaje predeterminado`);
+    return 'No te rindas — el primer paso pequeño es todo lo que necesitas dar ahora.';
+  }
+};
+
+module.exports = { generateMicroTasks, splitBlockedTask, generateCoachMessage };

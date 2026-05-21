@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 const { validationResult } = require('express-validator');
 const db = require('../config/database');
 const {
@@ -21,15 +22,18 @@ exports.register = async (req, res, next) => {
 
     const { email, password, name } = req.body;
 
-    const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const { rows } = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (rows.length) return res.status(409).json({ error: 'El email ya está registrado' });
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const id = uuidv4();
+    await db.query(
+      'INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)',
+      [id, email, name, passwordHash]
+    );
     const { rows: newRows } = await db.query(
-      `INSERT INTO users (email, name, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, name, avatar_url, created_at`,
-      [email, name, passwordHash]
+      'SELECT id, email, name, avatar_url, is_tester, created_at FROM users WHERE id = ?',
+      [id]
     );
 
     const user = newRows[0];
@@ -44,7 +48,7 @@ exports.login = async (req, res, next) => {
     if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
 
     const { email, password } = req.body;
-    const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const { rows } = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     const user = rows[0];
 
     if (!user?.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
@@ -57,11 +61,9 @@ exports.login = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// Llamado tras OAuth exitoso (Google / Facebook)
 exports.oauthCallback = async (req, res, next) => {
   try {
     const tokens = await issueTokenPair(req.user.id, req);
-    // Redirige al deep link de Flutter con los tokens
     const url = new URL(`${env.APP_SCHEME}://auth`);
     url.searchParams.set('access_token', tokens.accessToken);
     url.searchParams.set('refresh_token', tokens.refreshToken);
@@ -77,7 +79,6 @@ exports.refresh = async (req, res, next) => {
     const stored = await verifyRefreshToken(refreshToken);
     if (!stored) return res.status(401).json({ error: 'Refresh token inválido o expirado' });
 
-    // Rotación: revocar el viejo y emitir uno nuevo
     await revokeRefreshToken(refreshToken);
     const newAccessToken = generateAccessToken(stored.user_id);
     const newRefreshToken = await generateRefreshToken(stored.user_id, req.headers['user-agent']);

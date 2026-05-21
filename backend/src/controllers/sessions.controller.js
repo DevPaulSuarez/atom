@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const { validationResult } = require('express-validator');
 const db = require('../config/database');
 
@@ -12,17 +13,22 @@ exports.createSession = async (req, res, next) => {
     const { rows: check } = await db.query(
       `SELECT t.id FROM micro_tasks t
        JOIN projects p ON t.project_id = p.id
-       WHERE t.id = $1 AND p.user_id = $2`,
+       WHERE t.id = ? AND p.user_id = ?`,
       [microTaskId, req.user.id]
     );
     if (!check.length) return res.status(404).json({ error: 'Tarea no encontrada' });
 
-    const { rows: [session] } = await db.query(
+    const id = uuidv4();
+    await db.query(
       `INSERT INTO pomodoro_sessions
-         (user_id, micro_task_id, type, started_at, ended_at, was_skipped, task_completed)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [req.user.id, microTaskId, type, startedAt, endedAt ?? null, wasSkipped ?? false, taskCompleted ?? null]
+         (id, user_id, micro_task_id, type, started_at, ended_at, was_skipped, task_completed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, req.user.id, microTaskId, type, startedAt, endedAt ?? null, wasSkipped ?? false, taskCompleted ?? null]
+    );
+
+    const { rows: [session] } = await db.query(
+      'SELECT * FROM pomodoro_sessions WHERE id = ?',
+      [id]
     );
 
     res.status(201).json(session);

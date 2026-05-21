@@ -1,11 +1,10 @@
+const { v4: uuidv4 } = require('uuid');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const { Strategy: FacebookStrategy } = require('passport-facebook');
 const db = require('./database');
 const { env } = require('./env');
 
-// Busca la cuenta OAuth, o crea usuario y la vincula.
-// Si el mismo email ya existe (registro manual), los une al mismo user_id.
 const findOrCreateOAuthUser = async (provider, profile) => {
   const email = profile.emails?.[0]?.value || null;
   const name = profile.displayName || profile.username || 'Usuario';
@@ -16,16 +15,16 @@ const findOrCreateOAuthUser = async (provider, profile) => {
   const { rows: oauthRows } = await db.query(
     `SELECT u.* FROM users u
      JOIN oauth_accounts o ON u.id = o.user_id
-     WHERE o.provider = $1 AND o.provider_user_id = $2`,
+     WHERE o.provider = ? AND o.provider_user_id = ?`,
     [provider, providerId]
   );
   if (oauthRows.length > 0) return oauthRows[0];
 
-  // 2. ¿Existe usuario con el mismo email? (vincular cuentas)
+  // 2. ¿Existe usuario con el mismo email?
   let userId = null;
   if (email) {
     const { rows: emailRows } = await db.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id FROM users WHERE email = ?',
       [email]
     );
     if (emailRows.length > 0) userId = emailRows[0].id;
@@ -33,21 +32,21 @@ const findOrCreateOAuthUser = async (provider, profile) => {
 
   // 3. Si no existe, crear usuario
   if (!userId) {
-    const { rows } = await db.query(
-      'INSERT INTO users (email, name, avatar_url) VALUES ($1, $2, $3) RETURNING id',
-      [email, name, avatarUrl]
+    userId = uuidv4();
+    await db.query(
+      'INSERT INTO users (id, email, name, avatar_url) VALUES (?, ?, ?, ?)',
+      [userId, email, name, avatarUrl]
     );
-    userId = rows[0].id;
   }
 
   // 4. Registrar oauth_account
   await db.query(
-    'INSERT INTO oauth_accounts (user_id, provider, provider_user_id) VALUES ($1, $2, $3)',
-    [userId, provider, providerId]
+    'INSERT INTO oauth_accounts (id, user_id, provider, provider_user_id) VALUES (?, ?, ?, ?)',
+    [uuidv4(), userId, provider, providerId]
   );
 
-  const { rows: userRows } = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
-  return userRows[0];
+  const { rows: [userRow] } = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+  return userRow;
 };
 
 if (env.GOOGLE_CLIENT_ID) {

@@ -4,7 +4,7 @@ const db = require('./config/database');
 
 const start = async () => {
   try {
-    await db.query('SELECT 1'); // verifica conexión a PostgreSQL
+    await db.query('SELECT 1'); // verifica conexión a MySQL
     console.log('✅ Base de datos conectada');
 
     app.listen(env.PORT, () => {

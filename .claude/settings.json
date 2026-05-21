@@ -5,7 +5,10 @@
       "Bash(python3 -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\('token:', d.get\\('accessToken',''\\)[:30]+'...' if d.get\\('accessToken'\\) else d\\)\")",
       "Bash(curl -s -X POST http://localhost:3000/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"groqtest@test.com\",\"password\":\"123456\"}')",
       "Bash(python3 -c ' *)",
-      "Bash(xargs kill -9)"
+      "Bash(xargs kill -9)",
+      "Bash(xargs grep -l \"pg\\\\|postgres\\\\|pool\\\\|query\\\\|\\\\$[0-9]\")",
+      "Bash(grep -n \"\\\\$[0-9]\\\\|json_agg\\\\|RETURNING\\\\|NOW\\(\\)\\\\|uuid\\\\|ON CONFLICT\\\\|ILIKE\" /Users/devpess/Desktop/atom/backend/src/controllers/projects.controller.js /Users/devpess/Desktop/atom/backend/src/controllers/auth.controller.js /Users/devpess/Desktop/atom/backend/src/controllers/tasks.controller.js /Users/devpess/Desktop/atom/backend/src/services/token.service.js)",
+      "Bash(grep -n \"\\\\$[0-9]\" /Users/devpess/Desktop/atom/backend/src/controllers/projects.controller.js /Users/devpess/Desktop/atom/backend/src/controllers/auth.controller.js /Users/devpess/Desktop/atom/backend/src/controllers/tasks.controller.js /Users/devpess/Desktop/atom/backend/src/controllers/sessions.controller.js)"
     ]
   }
 }

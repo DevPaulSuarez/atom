@@ -19,19 +19,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   _Filter _filter = _Filter.low;
 
   List<Project> _apply(List<Project> all) => switch (_filter) {
-        _Filter.all => all,
-        _Filter.low =>
-          all.where((p) => !p.isCompleted && p.progress <= 0.25).toList(),
-        _Filter.mid => all
-            .where((p) =>
-                !p.isCompleted && p.progress > 0.25 && p.progress <= 0.50)
-            .toList(),
-        _Filter.high => all
-            .where((p) =>
-                !p.isCompleted && p.progress > 0.50 && p.progress < 1.0)
-            .toList(),
-        _Filter.done => all.where((p) => p.isCompleted).toList(),
-      };
+    _Filter.all => all,
+    _Filter.low =>
+      all.where((p) => !p.isCompleted && p.progress <= 0.25).toList(),
+    _Filter.mid =>
+      all
+          .where(
+            (p) => !p.isCompleted && p.progress > 0.25 && p.progress <= 0.50,
+          )
+          .toList(),
+    _Filter.high =>
+      all
+          .where((p) => !p.isCompleted && p.progress > 0.50 && p.progress < 1.0)
+          .toList(),
+    _Filter.done => all.where((p) => p.isCompleted).toList(),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +66,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
               sliver: SliverList.separated(
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (ctx, i) {
                   final project = filtered[i];
                   final originalIndex = state.projects.indexOf(project);
@@ -93,8 +95,7 @@ class _AppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final completedCount =
-        state.projects.where((p) => p.isCompleted).length;
+    final completedCount = state.projects.where((p) => p.isCompleted).length;
 
     return SliverAppBar(
       backgroundColor: AppColors.bg(isDark),
@@ -107,8 +108,11 @@ class _AppBar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.emoji_events_rounded,
-                color: Colors.amber, size: 22),
+            const Icon(
+              Icons.emoji_events_rounded,
+              color: Colors.amber,
+              size: 22,
+            ),
             const SizedBox(width: 4),
             Text(
               '$completedCount',
@@ -156,8 +160,11 @@ class _AppBar extends StatelessWidget {
           onPressed: () => context.read<AppState>().toggleTheme(),
         ),
         IconButton(
-          icon: Icon(Icons.logout_rounded,
-              color: AppColors.textSecondary(isDark), size: 22),
+          icon: Icon(
+            Icons.logout_rounded,
+            color: AppColors.textSecondary(isDark),
+            size: 22,
+          ),
           onPressed: () => context.read<AppState>().logout(),
           tooltip: 'Cerrar sesión',
         ),
@@ -248,14 +255,10 @@ class _FilterBar extends StatelessWidget {
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: active
-                    ? AppColors.primary
-                    : AppColors.card(isDark),
+                color: active ? AppColors.primary : AppColors.card(isDark),
                 borderRadius: BorderRadius.circular(40),
                 border: Border.all(
-                  color: active
-                      ? AppColors.primary
-                      : AppColors.border(isDark),
+                  color: active ? AppColors.primary : AppColors.border(isDark),
                 ),
               ),
               child: Text(
@@ -265,8 +268,7 @@ class _FilterBar extends StatelessWidget {
                       ? Colors.white
                       : AppColors.textSecondary(isDark),
                   fontSize: 13,
-                  fontWeight:
-                      active ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ),
@@ -303,25 +305,33 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     final pct = (project.progress * 100).round();
     final isComplete = project.isCompleted;
     final accentColor = isComplete ? AppColors.success : _accent;
     final trackColor = isDark ? AppColors.trackDark : AppColors.trackLight;
 
+    final isActiveProject = state.activeProject?.id == project.id;
+    final phase = state.phase;
+    final pomodoroActive = isActiveProject && phase != PomodoroPhase.idle;
+    final phaseColor = switch (phase) {
+      PomodoroPhase.shortBreak => AppColors.breakColor,
+      PomodoroPhase.longBreak  => AppColors.longBreakColor,
+      _                        => AppColors.primary,
+    };
+
     return GestureDetector(
       onTap: () {
-        context.read<AppState>().setActiveProject(project);
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, anim, __) =>
+            pageBuilder: (_, anim, _) =>
                 ProjectDetailScreen(projectId: project.id),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
-              position: Tween(
-                begin: const Offset(1, 0),
-                end: Offset.zero,
-              ).animate(
-                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            transitionsBuilder: (_, anim, _, child) => SlideTransition(
+              position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+                  .animate(
+                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                  ),
               child: child,
             ),
             transitionDuration: const Duration(milliseconds: 320),
@@ -333,7 +343,12 @@ class _ProjectCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.card(isDark),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border(isDark)),
+          border: Border.all(
+            color: pomodoroActive
+                ? phaseColor.withValues(alpha: 0.5)
+                : AppColors.border(isDark),
+            width: pomodoroActive ? 1.5 : 1.0,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,8 +360,7 @@ class _ProjectCard extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(
-                        alpha: isDark ? 0.2 : 0.12),
+                    color: accentColor.withValues(alpha: isDark ? 0.2 : 0.12),
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Center(
@@ -402,33 +416,60 @@ class _ProjectCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            // Conteo de tareas
-            Row(
-              children: [
-                Icon(
-                  isComplete
-                      ? Icons.check_circle_rounded
-                      : Icons.list_rounded,
-                  size: 13,
-                  color: isComplete
-                      ? AppColors.success
-                      : AppColors.textSecondary(isDark),
+            // Conteo de tareas / Pomodoro en curso
+            if (pomodoroActive) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: phaseColor.withValues(alpha: isDark ? 0.15 : 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  isComplete
-                      ? 'Completado'
-                      : '${project.completedCount} de ${project.totalCount} tareas',
-                  style: TextStyle(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer_rounded, size: 13, color: phaseColor),
+                    const SizedBox(width: 5),
+                    Text(
+                      switch (phase) {
+                        PomodoroPhase.shortBreak => 'Descanso · ${state.formattedTime}',
+                        PomodoroPhase.longBreak  => 'Descanso largo · ${state.formattedTime}',
+                        PomodoroPhase.paused     => 'Pausado · ${state.formattedTime}',
+                        _                        => 'En curso · ${state.formattedTime}',
+                      },
+                      style: TextStyle(
+                        color: phaseColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else
+              Row(
+                children: [
+                  Icon(
+                    isComplete ? Icons.check_circle_rounded : Icons.list_rounded,
+                    size: 13,
                     color: isComplete
                         ? AppColors.success
                         : AppColors.textSecondary(isDark),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 5),
+                  Text(
+                    isComplete
+                        ? 'Completado'
+                        : '${project.completedCount} de ${project.totalCount} tareas',
+                    style: TextStyle(
+                      color: isComplete
+                          ? AppColors.success
+                          : AppColors.textSecondary(isDark),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -454,14 +495,19 @@ class _EmptyState extends StatelessWidget {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                color: AppColors.primary.withValues(
+                  alpha: isDark ? 0.15 : 0.08,
+                ),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
                   color: AppColors.primary.withValues(alpha: 0.2),
                 ),
               ),
-              child: const Icon(Icons.rocket_launch_rounded,
-                  size: 40, color: AppColors.primary),
+              child: const Icon(
+                Icons.rocket_launch_rounded,
+                size: 40,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 28),
             Text(
@@ -502,6 +548,7 @@ class _NewProjectSheet extends StatefulWidget {
 class _NewProjectSheetState extends State<_NewProjectSheet> {
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _motivationCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
 
@@ -509,6 +556,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
+    _motivationCtrl.dispose();
     super.dispose();
   }
 
@@ -519,9 +567,11 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
       _loading = true;
       _error = null;
     });
-    final error = await context
-        .read<AppState>()
-        .addProject(name, _descCtrl.text.trim());
+    final error = await context.read<AppState>().addProject(
+      name,
+      _descCtrl.text.trim(),
+      _motivationCtrl.text.trim(),
+    );
     if (!mounted) return;
     if (error != null) {
       setState(() {
@@ -538,8 +588,9 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
     final isDark = context.watch<AppState>().isDarkMode;
 
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.card(isDark),
@@ -570,8 +621,11 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                     color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.add_rounded,
-                      color: AppColors.primary, size: 22),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Column(
@@ -612,6 +666,13 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               isDark: isDark,
               maxLines: 3,
             ),
+            const SizedBox(height: 14),
+            _Field(
+              controller: _motivationCtrl,
+              label: '¿Por qué quieres terminar esto? (opcional)',
+              hint: 'ej. Conseguir trabajo como desarrollador',
+              isDark: isDark,
+            ),
             const SizedBox(height: 20),
             if (_loading)
               Padding(
@@ -622,15 +683,18 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.primary),
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
                       'Generando tareas con IA...',
                       style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500),
+                        color: AppColors.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -640,13 +704,20 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline,
-                        color: Colors.redAccent, size: 15),
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.redAccent,
+                      size: 15,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(_error!,
-                          style: const TextStyle(
-                              color: Colors.redAccent, fontSize: 13)),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -659,18 +730,25 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 child: _loading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('Crear proyecto',
+                    : const Text(
+                        'Crear proyecto',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -713,12 +791,13 @@ class _Field extends StatelessWidget {
         TextField(
           controller: controller,
           maxLines: maxLines,
-          style:
-              TextStyle(color: AppColors.textPrimary(isDark), fontSize: 15),
+          style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
-                color: AppColors.textSecondary(isDark), fontSize: 15),
+              color: AppColors.textSecondary(isDark),
+              fontSize: 15,
+            ),
             filled: true,
             fillColor: AppColors.bg(isDark),
             border: OutlineInputBorder(
@@ -731,11 +810,15 @@ class _Field extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColors.primary, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.5,
+              ),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ],
