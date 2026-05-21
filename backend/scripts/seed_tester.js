@@ -13,15 +13,21 @@ const TESTER_EMAIL    = 'tester@atom.app';
 const TESTER_PASSWORD = 'Atom#Tester2026';
 const TESTER_NAME     = 'Tester';
 
+function parseDbUrl(raw) {
+  // encode # so URL constructor doesn't treat it as a fragment
+  const safe = raw.replace(/#/g, '%23');
+  const u = new URL(safe);
+  return {
+    host:     u.hostname,
+    port:     parseInt(u.port) || 3306,
+    user:     decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database: u.pathname.slice(1),
+  };
+}
+
 async function main() {
-  const url = new URL(process.env.DATABASE_URL);
-  const conn = await mysql.createConnection({
-    host:     url.hostname,
-    port:     parseInt(url.port) || 3306,
-    user:     decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-    database: url.pathname.slice(1),
-  });
+  const conn = await mysql.createConnection(parseDbUrl(process.env.DATABASE_URL));
 
   try {
     const [rows] = await conn.execute(
