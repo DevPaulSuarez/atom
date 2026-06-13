@@ -5,6 +5,7 @@ class Project {
   final String name;
   final String description;
   final String motivation;
+  int focusMinutes; // duración del enfoque del proyecto (editable)
   String status;
   DateTime? completedAt;
   List<MicroTask> tasks; // solo top-level (parent_id == null)
@@ -17,6 +18,7 @@ class Project {
     required this.name,
     required this.description,
     this.motivation = '',
+    this.focusMinutes = 25,
     this.status = 'active',
     this.completedAt,
     List<MicroTask>? tasks,
@@ -85,6 +87,11 @@ class Project {
 
   factory Project.fromApiList(Map<String, dynamic> json) => Project.fromApi(json);
 
+  static int _parseFocusMinutes(dynamic raw) {
+    final value = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+    return (value ?? 25).clamp(1, 90);
+  }
+
   factory Project.fromApi(Map<String, dynamic> json) {
     final flat = (json['tasks'] as List? ?? [])
         .map((t) => MicroTask.fromApi(t as Map<String, dynamic>))
@@ -95,6 +102,7 @@ class Project {
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
       motivation: json['motivation'] as String? ?? '',
+      focusMinutes: _parseFocusMinutes(json['focus_minutes']),
       status: json['status'] as String? ?? 'active',
       completedAt: rawDate != null ? DateTime.tryParse(rawDate.toString()) : null,
       tasks: buildHierarchy(flat),
@@ -106,6 +114,7 @@ class Project {
         name: name,
         description: description,
         motivation: motivation,
+        focusMinutes: focusMinutes,
         status: status,
         completedAt: completedAt,
         tasks: buildHierarchy(loadedTasks),
@@ -116,6 +125,7 @@ class Project {
         'name': name,
         'description': description,
         'motivation': motivation,
+        'focus_minutes': focusMinutes,
         'status': status,
         'completed_at': completedAt?.toIso8601String(),
         'tasks': tasks.map((t) => t.toJson()).toList(),
@@ -133,6 +143,7 @@ class Project {
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
       motivation: json['motivation'] as String? ?? '',
+      focusMinutes: _parseFocusMinutes(json['focus_minutes']),
       status: json['status'] as String? ?? 'active',
       completedAt: rawDate != null ? DateTime.tryParse(rawDate.toString()) : null,
       tasks: buildHierarchy(flat),

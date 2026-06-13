@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN focus_minutes INT NOT NULL DEFAULT 25;

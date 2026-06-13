@@ -37,29 +37,34 @@ exports.createProject = async (req, res, next) => {
 
     const { name, description = '', motivation = '' } = req.body;
 
+    // Duración del enfoque elegida por el usuario (minutos). Default 25, rango 1–90.
+    let focusMinutes = parseInt(req.body.focusMinutes, 10);
+    if (!Number.isFinite(focusMinutes)) focusMinutes = 25;
+    focusMinutes = Math.min(90, Math.max(1, focusMinutes));
+
     // 1. Crear proyecto
     const projectId = uuidv4();
     await db.query(
-      'INSERT INTO projects (id, user_id, name, description, motivation, ai_model) VALUES (?, ?, ?, ?, ?, ?)',
-      [projectId, req.user.id, name, description, motivation, process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']
+      'INSERT INTO projects (id, user_id, name, description, motivation, focus_minutes, ai_model) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [projectId, req.user.id, name, description, motivation, focusMinutes, process.env.GROQ_MODEL || 'llama-3.3-70b-versatile']
     );
     const { rows: [project] } = await db.query(
       'SELECT * FROM projects WHERE id = ?',
       [projectId]
     );
 
-    // 2. Generar microtareas con IA
-    const taskTitles = await generateMicroTasks(name, description);
+    // 2. Generar microtareas con IA (cada una con su estimación de pomodoros)
+    const generatedTasks = await generateMicroTasks(name, description);
 
     // 3. Insertar tareas en una sola query
     const values = [];
-    const placeholders = taskTitles.map((title, i) => {
-      values.push(uuidv4(), projectId, title, i);
-      return '(?, ?, ?, ?)';
+    const placeholders = generatedTasks.map((t, i) => {
+      values.push(uuidv4(), projectId, t.title, i, t.pomodoros);
+      return '(?, ?, ?, ?, ?)';
     }).join(', ');
 
     await db.query(
-      `INSERT INTO micro_tasks (id, project_id, title, order_index) VALUES ${placeholders}`,
+      `INSERT INTO micro_tasks (id, project_id, title, order_index, estimated_pomodoros) VALUES ${placeholders}`,
       values
     );
 
@@ -86,6 +91,37 @@ exports.getProject = async (req, res, next) => {
     );
 
     res.json({ ...project, tasks });
+  } catch (err) { next(err); }
+};
+
+exports.updateProject = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
+
+    const { rows } = await db.query(
+      'SELECT id FROM projects WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    if (req.body.focusMinutes === undefined) {
+      return res.status(422).json({ error: 'Nada que actualizar' });
+    }
+    let focusMinutes = parseInt(req.body.focusMinutes, 10);
+    if (!Number.isFinite(focusMinutes)) focusMinutes = 25;
+    focusMinutes = Math.min(90, Math.max(1, focusMinutes));
+
+    await db.query(
+      'UPDATE projects SET focus_minutes = ? WHERE id = ?',
+      [focusMinutes, req.params.id]
+    );
+
+    const { rows: [project] } = await db.query(
+      'SELECT * FROM projects WHERE id = ?',
+      [req.params.id]
+    );
+    res.json(project);
   } catch (err) { next(err); }
 };
 

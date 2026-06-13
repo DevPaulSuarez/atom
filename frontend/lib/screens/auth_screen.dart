@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -43,20 +44,21 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _register() async {
+    final l = AppLocalizations.of(context);
     final name = _registerNameCtrl.text.trim();
     final email = _registerEmailCtrl.text.trim();
     final pass = _registerPassCtrl.text;
 
     if (name.isEmpty || email.isEmpty || pass.isEmpty) {
-      setState(() => _error = 'Completa todos los campos');
+      setState(() => _error = l.fillAllFields);
       return;
     }
     if (!email.contains('@')) {
-      setState(() => _error = 'Email inválido');
+      setState(() => _error = l.invalidEmail);
       return;
     }
     if (pass.length < 6) {
-      setState(() => _error = 'La contraseña debe tener al menos 6 caracteres');
+      setState(() => _error = l.passwordTooShort);
       return;
     }
 
@@ -75,11 +77,12 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _login() async {
+    final l = AppLocalizations.of(context);
     final email = _loginEmailCtrl.text.trim();
     final pass = _loginPassCtrl.text;
 
     if (email.isEmpty || pass.isEmpty) {
-      setState(() => _error = 'Completa todos los campos');
+      setState(() => _error = l.fillAllFields);
       return;
     }
 
@@ -99,6 +102,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isDark = context.watch<AppState>().isDarkMode;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final card = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -140,7 +144,7 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               const SizedBox(height: 6),
               Text(
-                'Productividad con método Pomodoro',
+                l.authTagline,
                 style: TextStyle(color: textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 40),
@@ -179,9 +183,9 @@ class _AuthScreenState extends State<AuthScreen>
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
-                          tabs: const [
-                            Tab(text: 'Registrarse'),
-                            Tab(text: 'Iniciar sesión'),
+                          tabs: [
+                            Tab(text: l.tabRegister),
+                            Tab(text: l.tabLogin),
                           ],
                         ),
                       ),
@@ -275,8 +279,8 @@ class _AuthScreenState extends State<AuthScreen>
                                 )
                               : Text(
                                   _tabs.index == 0
-                                      ? 'Crear cuenta'
-                                      : 'Entrar',
+                                      ? l.createAccount
+                                      : l.signIn,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -322,13 +326,14 @@ class _RegisterForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         children: [
           _Field(
             ctrl: nameCtrl,
-            hint: 'Tu nombre',
+            hint: l.hintName,
             icon: Icons.person_outline_rounded,
             border: border,
             textPrimary: textPrimary,
@@ -338,7 +343,7 @@ class _RegisterForm extends StatelessWidget {
           const SizedBox(height: 12),
           _Field(
             ctrl: emailCtrl,
-            hint: 'Email',
+            hint: l.hintEmail,
             icon: Icons.mail_outline_rounded,
             keyboardType: TextInputType.emailAddress,
             border: border,
@@ -349,7 +354,7 @@ class _RegisterForm extends StatelessWidget {
           const SizedBox(height: 12),
           _Field(
             ctrl: passCtrl,
-            hint: 'Contraseña',
+            hint: l.hintPassword,
             icon: Icons.lock_outline_rounded,
             obscure: obscure,
             onToggleObscure: onToggleObscure,
@@ -387,13 +392,14 @@ class _LoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         children: [
           _Field(
             ctrl: emailCtrl,
-            hint: 'Email',
+            hint: l.hintEmail,
             icon: Icons.mail_outline_rounded,
             keyboardType: TextInputType.emailAddress,
             border: border,
@@ -404,7 +410,7 @@ class _LoginForm extends StatelessWidget {
           const SizedBox(height: 12),
           _Field(
             ctrl: passCtrl,
-            hint: 'Contraseña',
+            hint: l.hintPassword,
             icon: Icons.lock_outline_rounded,
             obscure: obscure,
             onToggleObscure: onToggleObscure,

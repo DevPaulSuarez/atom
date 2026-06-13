@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/project.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import 'progress_screen.dart';
 import 'project_detail_screen.dart';
+import 'settings_sheet.dart';
 
 enum _Filter { all, low, mid, high, done }
 
@@ -95,6 +98,7 @@ class _AppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final completedCount = state.projects.where((p) => p.isCompleted).length;
 
     return SliverAppBar(
@@ -102,7 +106,7 @@ class _AppBar extends StatelessWidget {
       floating: true,
       pinned: false,
       automaticallyImplyLeading: false,
-      leadingWidth: 72,
+      leadingWidth: 116,
       leading: Padding(
         padding: const EdgeInsets.only(left: 16),
         child: Row(
@@ -116,12 +120,29 @@ class _AppBar extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '$completedCount',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textPrimary(isDark),
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
             ),
+            if (state.currentStreak > 0) ...[
+              const SizedBox(width: 12),
+              const Icon(
+                Icons.local_fire_department_rounded,
+                color: Color(0xFFFF8C42),
+                size: 22,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${state.currentStreak}',
+                style: TextStyle(
+                  color: AppColors.textPrimary(isDark),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -141,7 +162,7 @@ class _AppBar extends StatelessWidget {
           ),
           if (state.userName.isNotEmpty)
             Text(
-              'Hola, ${state.userName} 👋',
+              l.greeting(state.userName),
               style: TextStyle(
                 color: AppColors.textSecondary(isDark),
                 fontSize: 12,
@@ -161,12 +182,24 @@ class _AppBar extends StatelessWidget {
         ),
         IconButton(
           icon: Icon(
-            Icons.logout_rounded,
+            Icons.insights_rounded,
             color: AppColors.textSecondary(isDark),
             size: 22,
           ),
-          onPressed: () => context.read<AppState>().logout(),
-          tooltip: 'Cerrar sesión',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProgressScreen()),
+          ),
+          tooltip: l.progressTitle,
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.settings_rounded,
+            color: AppColors.textSecondary(isDark),
+            size: 22,
+          ),
+          onPressed: () => showSettingsSheet(context),
+          tooltip: l.settings,
         ),
         const SizedBox(width: 4),
       ],
@@ -182,6 +215,7 @@ class _Fab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -200,9 +234,9 @@ class _Fab extends StatelessWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         icon: const Icon(Icons.add_rounded, size: 22),
-        label: const Text(
-          'Nuevo proyecto',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        label: Text(
+          l.newProject,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
       ),
     );
@@ -305,6 +339,7 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final state = context.watch<AppState>();
     final pct = (project.progress * 100).round();
     final isComplete = project.isCompleted;
@@ -431,10 +466,10 @@ class _ProjectCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       switch (phase) {
-                        PomodoroPhase.shortBreak => 'Descanso · ${state.formattedTime}',
-                        PomodoroPhase.longBreak  => 'Descanso largo · ${state.formattedTime}',
-                        PomodoroPhase.paused     => 'Pausado · ${state.formattedTime}',
-                        _                        => 'En curso · ${state.formattedTime}',
+                        PomodoroPhase.shortBreak => l.statusBreak(state.formattedTime),
+                        PomodoroPhase.longBreak  => l.statusLongBreak(state.formattedTime),
+                        PomodoroPhase.paused     => l.statusPaused(state.formattedTime),
+                        _                        => l.statusInProgress(state.formattedTime),
                       },
                       style: TextStyle(
                         color: phaseColor,
@@ -458,8 +493,8 @@ class _ProjectCard extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     isComplete
-                        ? 'Completado'
-                        : '${project.completedCount} de ${project.totalCount} tareas',
+                        ? l.completedLabel
+                        : l.tasksCount(project.completedCount, project.totalCount),
                     style: TextStyle(
                       color: isComplete
                           ? AppColors.success
@@ -485,6 +520,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -511,7 +547,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 28),
             Text(
-              'Sin proyectos aún',
+              l.emptyTitle,
               style: TextStyle(
                 color: AppColors.textPrimary(isDark),
                 fontSize: 22,
@@ -521,7 +557,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Crea tu primer proyecto y la IA\ngenerará las tareas automáticamente.',
+              l.emptyBody,
               style: TextStyle(
                 color: AppColors.textSecondary(isDark),
                 fontSize: 15,
@@ -551,6 +587,14 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
   final _motivationCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+  late int _focusMinutes;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-selecciona la duración por defecto del ajuste global.
+    _focusMinutes = context.read<AppState>().focusMinutes;
+  }
 
   @override
   void dispose() {
@@ -571,6 +615,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
       name,
       _descCtrl.text.trim(),
       _motivationCtrl.text.trim(),
+      focusMinutes: _focusMinutes,
     );
     if (!mounted) return;
     if (error != null) {
@@ -585,6 +630,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isDark = context.watch<AppState>().isDarkMode;
 
     return Padding(
@@ -633,7 +679,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Nuevo proyecto',
+                      l.newProject,
                       style: TextStyle(
                         color: AppColors.textPrimary(isDark),
                         fontSize: 20,
@@ -642,7 +688,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                       ),
                     ),
                     Text(
-                      'La IA generará las tareas automáticamente',
+                      l.newProjectSubtitle,
                       style: TextStyle(
                         color: AppColors.textSecondary(isDark),
                         fontSize: 12,
@@ -655,24 +701,40 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
             const SizedBox(height: 24),
             _Field(
               controller: _nameCtrl,
-              label: 'Nombre del proyecto',
-              hint: 'ej. Aprender Flutter',
+              label: l.fieldProjectName,
+              hint: l.hintProjectName,
               isDark: isDark,
             ),
             const SizedBox(height: 14),
             _Field(
               controller: _descCtrl,
-              label: 'Descripción (opcional)',
-              hint: 'ej. Crear apps móviles con Dart y Flutter desde cero',
+              label: l.fieldDescription,
+              hint: l.hintDescription,
               isDark: isDark,
               maxLines: 3,
             ),
             const SizedBox(height: 14),
             _Field(
               controller: _motivationCtrl,
-              label: '¿Por qué quieres terminar esto? (opcional)',
-              hint: 'ej. Conseguir trabajo como desarrollador',
+              label: l.fieldMotivation,
+              hint: l.hintMotivation,
               isDark: isDark,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              l.focusDuration.toUpperCase(),
+              style: TextStyle(
+                color: AppColors.textSecondary(isDark),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 8),
+            FocusDurationField(
+              minutes: _focusMinutes,
+              isDark: isDark,
+              onChanged: (m) => setState(() => _focusMinutes = m),
             ),
             const SizedBox(height: 20),
             if (_loading)
@@ -690,7 +752,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      'Generando tareas con IA...',
+                      l.generatingTasks,
                       style: TextStyle(
                         color: AppColors.primary,
                         fontSize: 13,
@@ -743,9 +805,9 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'Crear proyecto',
-                        style: TextStyle(
+                    : Text(
+                        l.createProject,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),

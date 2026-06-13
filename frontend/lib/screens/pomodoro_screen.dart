@@ -4,6 +4,7 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -104,11 +105,14 @@ class _PomodoroScreenState extends State<PomodoroScreen>
   }
 
   void _showCompletionModal() {
+    final workTask = _appState.activeProject?.activeWorkTask;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _TaskCompleteDialog(
-        taskTitle: _appState.activeProject?.activeWorkTask?.title ?? '',
+        taskTitle: workTask?.title ?? '',
+        done: workTask?.pomodorosCount ?? 0,
+        estimate: workTask?.estimatedPomodoros ?? 1,
         onComplete: () {
           Navigator.pop(ctx);
           _dialogShown = false;
@@ -118,7 +122,28 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         onContinue: () {
           Navigator.pop(ctx);
           _dialogShown = false;
-          _appState.continueCurrentTask();
+          if (_appState.atOrOverEstimate) {
+            _showOverEstimateChoice();
+          } else {
+            _appState.continueAfterIncomplete();
+          }
+        },
+      ),
+    );
+  }
+
+  void _showOverEstimateChoice() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _OverEstimateDialog(
+        onMore: () {
+          Navigator.pop(ctx);
+          _appState.continueAfterIncomplete();
+        },
+        onSplit: () {
+          Navigator.pop(ctx);
+          _appState.splitCurrentTask();
         },
       ),
     );
@@ -126,6 +151,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final state = context.watch<AppState>();
     final isDark = state.isDarkMode;
 
@@ -183,7 +209,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          state.activeProject?.name ?? 'Pomodoro',
+          state.activeProject?.name ?? l.pomodoro,
           overflow: TextOverflow.ellipsis,
         ),
       ),
@@ -220,7 +246,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                     ),
                   ),
                   child: Text(
-                    _phaseLabel(state.phase),
+                    _phaseLabel(l, state.phase),
                     style: TextStyle(
                       color: phaseColor,
                       fontSize: 12,
@@ -240,6 +266,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                 phaseColor: phaseColor,
                 textSecondary: textSecondary,
                 isBreak: isBreak,
+                l: l,
               ),
 
               const SizedBox(height: 24),
@@ -311,10 +338,10 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                                       const SizedBox(height: 4),
                                       Text(
                                         isLongBreak
-                                            ? 'descanso largo'
+                                            ? l.longBreakLower
                                             : isBreak
-                                                ? 'descansa'
-                                                : 'minutos',
+                                                ? l.restLower
+                                                : l.minutesLower,
                                         style: TextStyle(
                                           color: textSecondary,
                                           fontSize: 13,
@@ -385,7 +412,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                 width: double.infinity,
                 height: 60,
                 child: _buildActionButton(
-                    state, phaseColor, isBreak, isLongBreak),
+                    l, state, phaseColor, isBreak, isLongBreak),
               ),
 
               // Secondary actions — solo visibles para el usuario tester
@@ -400,7 +427,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                     if (state.phase == PomodoroPhase.working) ...[
                       _SecondaryBtn(
                         icon: Icons.pause_rounded,
-                        label: 'Pausar',
+                        label: l.pause,
                         color: textSecondary,
                         onTap: () => state.pausePomodoro(),
                       ),
@@ -411,10 +438,10 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                     _SecondaryBtn(
                       icon: Icons.skip_next_rounded,
                       label: isLongBreak
-                          ? 'Saltar descanso largo'
+                          ? l.skipLongBreak
                           : isBreak
-                              ? 'Saltar descanso'
-                              : 'Saltar fase',
+                              ? l.skipBreak
+                              : l.skipPhase,
                       color: textSecondary,
                       onTap: () => state.skipPhase(),
                     ),
@@ -455,8 +482,8 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     ); // Stack
   }
 
-  Widget _buildActionButton(
-      AppState state, Color phaseColor, bool isBreak, bool isLongBreak) {
+  Widget _buildActionButton(AppLocalizations l, AppState state,
+      Color phaseColor, bool isBreak, bool isLongBreak) {
     if (isBreak) {
       final breakBg = isLongBreak
           ? AppColors.longBreakColor.withValues(alpha: 0.12)
@@ -466,7 +493,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
       final breakIcon =
           isLongBreak ? Icons.self_improvement_rounded : Icons.coffee_rounded;
       final breakLabel =
-          isLongBreak ? 'Descanso largo...' : 'Descansando...';
+          isLongBreak ? l.longBreakOngoing : l.breakOngoing;
 
       return ElevatedButton(
         onPressed: null,
@@ -506,15 +533,15 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_rounded,
+            const Icon(Icons.check_circle_rounded,
                 size: 20, color: AppColors.success),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Text(
-              '¡Proyecto completado!',
-              style: TextStyle(
+              l.projectCompletedExclaim,
+              style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
                   color: AppColors.success),
@@ -534,14 +561,14 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.play_arrow_rounded, size: 26),
-            SizedBox(width: 8),
-            Text('Comenzar',
-                style:
-                    TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            const Icon(Icons.play_arrow_rounded, size: 26),
+            const SizedBox(width: 8),
+            Text(l.start,
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -558,14 +585,14 @@ class _PomodoroScreenState extends State<PomodoroScreen>
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.timer_rounded, size: 20, color: AppColors.primary),
-            SizedBox(width: 10),
+            const Icon(Icons.timer_rounded, size: 20, color: AppColors.primary),
+            const SizedBox(width: 10),
             Text(
-              'Pomodoro en curso...',
-              style: TextStyle(
+              l.pomodoroOngoing,
+              style: const TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
                 color: AppColors.primary,
@@ -586,26 +613,27 @@ class _PomodoroScreenState extends State<PomodoroScreen>
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.play_arrow_rounded, size: 26),
-          SizedBox(width: 8),
-          Text('Reanudar',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          const Icon(Icons.play_arrow_rounded, size: 26),
+          const SizedBox(width: 8),
+          Text(l.resume,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 
-  String _phaseLabel(PomodoroPhase phase) => switch (phase) {
-        PomodoroPhase.working => 'TRABAJANDO',
-        PomodoroPhase.paused => 'EN PAUSA',
-        PomodoroPhase.shortBreak => 'DESCANSO CORTO',
-        PomodoroPhase.longBreak => 'DESCANSO LARGO',
-        PomodoroPhase.askComplete => 'SESIÓN COMPLETA',
-        PomodoroPhase.breakDone => 'DESCANSASTE',
-        PomodoroPhase.idle => 'LISTO',
+  String _phaseLabel(AppLocalizations l, PomodoroPhase phase) =>
+      switch (phase) {
+        PomodoroPhase.working => l.phaseWorking,
+        PomodoroPhase.paused => l.phasePaused,
+        PomodoroPhase.shortBreak => l.phaseShortBreak,
+        PomodoroPhase.longBreak => l.phaseLongBreak,
+        PomodoroPhase.askComplete => l.phaseSessionComplete,
+        PomodoroPhase.breakDone => l.phaseBreakDone,
+        PomodoroPhase.idle => l.phaseReady,
       };
 }
 
@@ -642,6 +670,7 @@ class _CycleIndicator extends StatelessWidget {
   final Color phaseColor;
   final Color textSecondary;
   final bool isBreak;
+  final AppLocalizations l;
 
   const _CycleIndicator({
     required this.completed,
@@ -649,6 +678,7 @@ class _CycleIndicator extends StatelessWidget {
     required this.phaseColor,
     required this.textSecondary,
     required this.isBreak,
+    required this.l,
   });
 
   @override
@@ -678,9 +708,9 @@ class _CycleIndicator extends StatelessWidget {
         Text(
           isBreak
               ? completed == 4
-                  ? '¡Ciclo completo! Bien merecido descanso'
-                  : 'Sesión $completed de 4 completada'
-              : 'Sesión $sessionNumber de 4',
+                  ? l.cycleComplete
+                  : l.sessionCompletedOf(completed)
+              : l.sessionOf(sessionNumber),
           style: TextStyle(
             color: textSecondary,
             fontSize: 12,
@@ -817,7 +847,7 @@ class _SplittingLoadingScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'La IA está analizando la tarea...',
+              AppLocalizations.of(context).analyzingTask,
               style: TextStyle(
                 color: AppColors.textSecondary(isDark),
                 fontSize: 15,
@@ -849,6 +879,7 @@ class _MotivationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final textPrimary = AppColors.textPrimary(isDark);
     final cardColor = AppColors.card(isDark);
     final borderColor = AppColors.border(isDark);
@@ -879,7 +910,7 @@ class _MotivationScreen extends StatelessWidget {
 
               // Título
               Text(
-                'Un momento de bloqueo',
+                l.blockMomentTitle,
                 style: TextStyle(
                   color: textPrimary,
                   fontSize: 26,
@@ -891,7 +922,7 @@ class _MotivationScreen extends StatelessWidget {
               if (splitCount > 0) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Dividí la tarea en $splitCount pasos más pequeños.',
+                  l.splitIntoSteps(splitCount),
                   style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 14,
@@ -926,7 +957,7 @@ class _MotivationScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'POR QUÉ EMPEZASTE',
+                            l.whyStarted,
                             style: TextStyle(
                               color: AppColors.primary,
                               fontSize: 11,
@@ -982,7 +1013,7 @@ class _MotivationScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'Tu coach',
+                            l.yourCoach,
                             style: TextStyle(
                               color: AppColors.breakColor,
                               fontSize: 13,
@@ -1031,14 +1062,14 @@ class _MotivationScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.play_arrow_rounded, size: 24),
-                        SizedBox(width: 10),
+                        const Icon(Icons.play_arrow_rounded, size: 24),
+                        const SizedBox(width: 10),
                         Text(
-                          'Volver a intentar',
-                          style: TextStyle(
+                          l.tryAgain,
+                          style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1065,6 +1096,7 @@ class _BreakDoneDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isDark = context.watch<AppState>().isDarkMode;
     final bg = AppColors.card(isDark);
     final textPrimary = AppColors.textPrimary(isDark);
@@ -1090,7 +1122,7 @@ class _BreakDoneDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              '¡Descanso terminado!',
+              l.breakOverTitle,
               style: TextStyle(
                 color: textPrimary,
                 fontSize: 20,
@@ -1101,7 +1133,7 @@ class _BreakDoneDialog extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Es hora de retomar el enfoque. ¿Listo para el siguiente Pomodoro?',
+              l.breakOverBody,
               style: TextStyle(color: textSecondary, fontSize: 14, height: 1.4),
               textAlign: TextAlign.center,
             ),
@@ -1118,9 +1150,9 @@ class _BreakDoneDialog extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('¡Vamos!',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                child: Text(l.letsGo,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -1132,17 +1164,22 @@ class _BreakDoneDialog extends StatelessWidget {
 
 class _TaskCompleteDialog extends StatelessWidget {
   final String taskTitle;
+  final int done;
+  final int estimate;
   final VoidCallback onComplete;
   final VoidCallback onContinue;
 
   const _TaskCompleteDialog({
     required this.taskTitle,
+    required this.done,
+    required this.estimate,
     required this.onComplete,
     required this.onContinue,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isDark = context.watch<AppState>().isDarkMode;
     final bg = AppColors.card(isDark);
     final textPrimary = AppColors.textPrimary(isDark);
@@ -1169,7 +1206,7 @@ class _TaskCompleteDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              '¿Completaste la tarea?',
+              l.didYouComplete,
               style: TextStyle(
                 color: textPrimary,
                 fontSize: 20,
@@ -1188,7 +1225,24 @@ class _TaskCompleteDialog extends StatelessWidget {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 12),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                l.pomodoroOfEstimate(done, estimate),
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -1201,8 +1255,8 @@ class _TaskCompleteDialog extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Sí, la completé',
-                    style: TextStyle(
+                child: Text(l.yesCompleted,
+                    style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
@@ -1219,8 +1273,101 @@ class _TaskCompleteDialog extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Todavía no',
-                    style: TextStyle(
+                child: Text(l.notYet,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Over-estimate choice: +1 pomodoro o dividir ───────────────────────────────
+
+class _OverEstimateDialog extends StatelessWidget {
+  final VoidCallback onMore;
+  final VoidCallback onSplit;
+
+  const _OverEstimateDialog({required this.onMore, required this.onSplit});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final isDark = context.watch<AppState>().isDarkMode;
+    final bg = AppColors.card(isDark);
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
+
+    return Dialog(
+      backgroundColor: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppColors.breakSoft,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(Icons.hourglass_bottom_rounded,
+                  size: 34, color: AppColors.breakColor),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l.overEstimateTitle,
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l.overEstimateBody,
+              style: TextStyle(color: textSecondary, fontSize: 14, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: onMore,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(l.oneMorePomodoro,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: onSplit,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(l.splitTaskAction,
+                    style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),

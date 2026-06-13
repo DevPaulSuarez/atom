@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -15,43 +16,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _ctrl = PageController();
   int _page = 0;
 
-  static const _pages = [
+  static const _pageCount = 4;
+
+  List<_PageData> _buildPages(AppLocalizations l) => [
     _PageData(
       icon: Icons.timer_rounded,
       iconColor: AppColors.primary,
-      iconBg: Color(0xFF2A2A4A),
-      title: 'Bienvenido a Atom',
-      subtitle:
-          'Tu compañero de productividad basado en el método Pomodoro. Trabaja en ciclos de enfoque y descanso para rendir al máximo.',
+      iconBg: const Color(0xFF2A2A4A),
+      title: l.onbTitle1,
+      subtitle: l.onbBody1,
     ),
     _PageData(
       icon: Icons.auto_awesome_rounded,
       iconColor: AppColors.breakColor,
-      iconBg: Color(0xFF3A2A2A),
-      title: 'IA genera tu plan',
-      subtitle:
-          'Describe tu proyecto y la inteligencia artificial lo divide en microtareas concretas y accionables, listas para ejecutar.',
+      iconBg: const Color(0xFF3A2A2A),
+      title: l.onbTitle2,
+      subtitle: l.onbBody2,
     ),
     _PageData(
       icon: Icons.task_alt_rounded,
       iconColor: AppColors.success,
-      iconBg: Color(0xFF1A3A2A),
-      title: 'Una tarea a la vez',
-      subtitle:
-          'Enfócate en una sola microtarea por sesión. Al terminar, avanza a la siguiente de forma automática y mantén el ritmo.',
+      iconBg: const Color(0xFF1A3A2A),
+      title: l.onbTitle3,
+      subtitle: l.onbBody3,
     ),
     _PageData(
       icon: Icons.insights_rounded,
       iconColor: AppColors.longBreakColor,
-      iconBg: Color(0xFF1A2A3A),
-      title: 'Ciclos Pomodoro',
-      subtitle:
-          '25 min de trabajo · 5 min de descanso · cada 4 ciclos un descanso largo. La alarma te avisa, tú decides cuándo continuar.',
+      iconBg: const Color(0xFF1A2A3A),
+      title: l.onbTitle4,
+      subtitle: l.onbBody4,
     ),
   ];
 
   void _next() {
-    if (_page < _pages.length - 1) {
+    if (_page < _pageCount - 1) {
       _ctrl.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -73,7 +72,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _page == _pages.length - 1;
+    final l = AppLocalizations.of(context);
+    final pages = _buildPages(l);
+    final isLast = _page == pages.length - 1;
 
     return Scaffold(
       backgroundColor: AppColors.bgDark,
@@ -87,9 +88,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.fromLTRB(0, 16, 24, 0),
                 child: TextButton(
                   onPressed: _finish,
-                  child: const Text(
-                    'Saltar',
-                    style: TextStyle(
+                  child: Text(
+                    l.skip,
+                    style: const TextStyle(
                       color: AppColors.textSecondaryDark,
                       fontSize: 14,
                     ),
@@ -103,8 +104,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView.builder(
                 controller: _ctrl,
                 onPageChanged: (i) => setState(() => _page = i),
-                itemCount: _pages.length,
-                itemBuilder: (_, i) => _PageView(data: _pages[i]),
+                itemCount: pages.length,
+                itemBuilder: (_, i) => _PageView(data: pages[i]),
               ),
             ),
 
@@ -117,7 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
-                      _pages.length,
+                      pages.length,
                       (i) => AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -150,7 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            isLast ? 'Comenzar' : 'Siguiente',
+                            isLast ? l.getStarted : l.next,
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w600,

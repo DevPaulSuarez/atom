@@ -4,6 +4,7 @@ class MicroTask {
   final String title;
   bool isCompleted;
   int pomodorosCount;
+  final int estimatedPomodoros; // estimado por la IA al crear/dividir
   List<MicroTask> subtasks;
 
   MicroTask({
@@ -12,6 +13,7 @@ class MicroTask {
     required this.title,
     this.isCompleted = false,
     this.pomodorosCount = 0,
+    this.estimatedPomodoros = 1,
     List<MicroTask>? subtasks,
   }) : subtasks = subtasks ?? [];
 
@@ -20,6 +22,11 @@ class MicroTask {
 
   int get totalPomodorosWithSubs =>
       pomodorosCount + subtasks.fold(0, (sum, s) => sum + s.pomodorosCount);
+
+  /// Pomodoros estimados incluyendo subtareas (si las hay).
+  int get estimatedWithSubs => hasSubtasks
+      ? subtasks.fold(0, (sum, s) => sum + s.estimatedPomodoros)
+      : estimatedPomodoros;
 
   MicroTask? get activeSubtask {
     for (final s in subtasks) {
@@ -34,6 +41,7 @@ class MicroTask {
         title: json['title'] as String,
         isCompleted: json['is_completed'] as bool? ?? false,
         pomodorosCount: (json['pomodoros_count'] as num?)?.toInt() ?? 0,
+        estimatedPomodoros: (json['estimated_pomodoros'] as num?)?.toInt() ?? 1,
       );
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +50,7 @@ class MicroTask {
         'title': title,
         'isCompleted': isCompleted,
         'pomodorosCount': pomodorosCount,
+        'estimatedPomodoros': estimatedPomodoros,
         'subtasks': subtasks.map((s) => s.toJson()).toList(),
       };
 
@@ -51,6 +60,7 @@ class MicroTask {
         title: json['title'] as String,
         isCompleted: json['isCompleted'] as bool? ?? false,
         pomodorosCount: json['pomodorosCount'] as int? ?? 0,
+        estimatedPomodoros: json['estimatedPomodoros'] as int? ?? 1,
         subtasks: (json['subtasks'] as List? ?? [])
             .map((s) => MicroTask.fromJson(s as Map<String, dynamic>))
             .toList(),

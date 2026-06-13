@@ -119,20 +119,20 @@ exports.splitTask = async (req, res, next) => {
     }
 
     // Generar subtareas y mensaje de coach en paralelo
-    const [subtaskTitles, coachMessage] = await Promise.all([
+    const [subtasks, coachMessage] = await Promise.all([
       splitBlockedTask(task.title, task.project_name, task.project_desc),
       generateCoachMessage(task.title, task.motivation || ''),
     ]);
 
-    // Insertar subtareas como hijos de la tarea bloqueada
+    // Insertar subtareas como hijos de la tarea bloqueada (con su estimación)
     const values = [];
-    const placeholders = subtaskTitles.map((title, i) => {
-      values.push(uuidv4(), task.project_id, task.id, title, i);
-      return '(?, ?, ?, ?, ?)';
+    const placeholders = subtasks.map((sub, i) => {
+      values.push(uuidv4(), task.project_id, task.id, sub.title, i, sub.pomodoros);
+      return '(?, ?, ?, ?, ?, ?)';
     }).join(', ');
 
     await db.query(
-      `INSERT INTO micro_tasks (id, project_id, parent_id, title, order_index) VALUES ${placeholders}`,
+      `INSERT INTO micro_tasks (id, project_id, parent_id, title, order_index, estimated_pomodoros) VALUES ${placeholders}`,
       values
     );
 
@@ -141,6 +141,6 @@ exports.splitTask = async (req, res, next) => {
       [task.project_id]
     );
 
-    res.json({ tasks, splitCount: subtaskTitles.length, coachMessage });
+    res.json({ tasks, splitCount: subtasks.length, coachMessage });
   } catch (err) { next(err); }
 };

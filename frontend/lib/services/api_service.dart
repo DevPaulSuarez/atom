@@ -12,7 +12,15 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  static const _base = 'https://apiatom.devpess.com';
+  // URL del API. Producción por defecto; se puede sobreescribir para pruebas
+  // locales con: flutter run --dart-define=API_BASE=http://10.0.2.2:3000
+  static const _base = String.fromEnvironment(
+    'API_BASE',
+    defaultValue: 'https://apiatom.devpess.com',
+  );
+
+  /// URL base del API en uso (para diagnóstico).
+  static String get baseUrl => _base;
   static const _kAccess = 'atom_access_token';
   static const _kRefresh = 'atom_refresh_token';
   static const _kName = 'atom_user_name';
@@ -89,19 +97,24 @@ class ApiService {
     return _parse(response);
   }
 
+  // Crear proyecto puede tardar (la IA genera tareas); el resto es rápido.
+  static const _timeout = Duration(seconds: 45);
+
   Future<http.Response> _send(String method, Uri uri, String? body) {
+    final Future<http.Response> req;
     switch (method) {
       case 'GET':
-        return http.get(uri, headers: _headers);
+        req = http.get(uri, headers: _headers);
       case 'POST':
-        return http.post(uri, headers: _headers, body: body);
+        req = http.post(uri, headers: _headers, body: body);
       case 'PATCH':
-        return http.patch(uri, headers: _headers, body: body);
+        req = http.patch(uri, headers: _headers, body: body);
       case 'DELETE':
-        return http.delete(uri, headers: _headers);
+        req = http.delete(uri, headers: _headers);
       default:
         throw UnsupportedError('Method $method');
     }
+    return req.timeout(_timeout);
   }
 
   Future<bool> _tryRefresh() async {

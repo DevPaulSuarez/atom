@@ -6,6 +6,8 @@ const { authenticate } = require('../middleware/auth.middleware');
 const router = Router();
 router.use(authenticate);
 
+router.get('/stats', sessionsController.getStats);
+
 router.post('/',
   [
     body('microTaskId').isUUID(),

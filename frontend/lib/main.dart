@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'l10n/app_localizations.dart';
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/projects_screen.dart';
+import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('🌐 API base: ${ApiService.baseUrl}');
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState(),
@@ -29,6 +32,9 @@ class AtomApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      locale: state.locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: _resolveHome(state),
     );
   }

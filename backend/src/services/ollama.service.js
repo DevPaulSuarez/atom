@@ -50,6 +50,26 @@ const FALLBACK_TASKS = {
 
 const LIMITS = { simple: [5, 7], medio: [9, 13], complejo: [15, 20] };
 
+const DEFAULT_POMODOROS = 2;
+const MAX_POMODOROS = 4;
+
+const clampPomodoros = (n, max = MAX_POMODOROS) => {
+  const v = parseInt(n, 10);
+  if (!Number.isFinite(v)) return DEFAULT_POMODOROS;
+  return Math.min(max, Math.max(1, v));
+};
+
+// Normaliza una entrada (string u objeto) a { title, pomodoros }.
+const normalizeTask = (entry, max = MAX_POMODOROS) => {
+  if (typeof entry === 'string') {
+    return { title: entry.trim(), pomodoros: DEFAULT_POMODOROS };
+  }
+  if (entry && typeof entry === 'object' && entry.title) {
+    return { title: String(entry.title).trim(), pomodoros: clampPomodoros(entry.pomodoros, max) };
+  }
+  return null;
+};
+
 const SYSTEM_PROMPT = `Eres un experto en planificación de proyectos de software y productividad.
 
 REGLA FUNDAMENTAL: Una microtarea = UNA acción técnica concreta con UN resultado verificable. Duración: 15-60 min.
@@ -76,8 +96,14 @@ Reglas de formato para cada tarea:
 3. Añade la tecnología si aporta claridad: Flutter, Express, PostgreSQL, etc.
 4. Las tareas siguen orden secuencial: estructura → datos → lógica → UI → integración → pruebas
 
+ESTIMACIÓN: para cada tarea estima cuántos pomodoros (bloques de enfoque) toma completarla.
+- 1 pomodoro  = tarea pequeña y directa
+- 2 pomodoros = tarea media
+- 3-4 pomodoros = tarea grande o con varias partes
+Usa solo números enteros del 1 al 4. Sé realista, no infles las estimaciones.
+
 Responde ÚNICAMENTE con JSON válido, sin texto adicional:
-{"complexity":"simple|medio|complejo","tasks":["Tarea 1","Tarea 2"]}`;
+{"complexity":"simple|medio|complejo","tasks":[{"title":"Tarea 1","pomodoros":2},{"title":"Tarea 2","pomodoros":1}]}`;
 
 const generateMicroTasks = async (name, description) => {
   try {
@@ -116,7 +142,7 @@ const generateMicroTasks = async (name, description) => {
 
     const complexity = parsed.complexity || 'medio';
     const [min, max] = LIMITS[complexity] ?? LIMITS.medio;
-    const tasks = parsed.tasks.map(String).filter(Boolean);
+    const tasks = parsed.tasks.map((t) => normalizeTask(t)).filter((t) => t && t.title);
 
     if (tasks.length < min) throw new Error(`Pocas tareas: ${tasks.length}`);
 
@@ -126,7 +152,7 @@ const generateMicroTasks = async (name, description) => {
     console.warn(`[Groq] Falló (${err.message}), usando tareas predeterminadas`);
     const words = (description || '').split(/\s+/).filter(Boolean).length;
     const key = words < 20 ? 'simple' : words < 60 ? 'medio' : 'complejo';
-    return FALLBACK_TASKS[key];
+    return FALLBACK_TASKS[key].map((t) => normalizeTask(t));
   }
 };
 
@@ -134,12 +160,13 @@ const SPLIT_SYSTEM_PROMPT = `Eres un experto en productividad. Una tarea está b
 
 Reglas:
 - Genera exactamente 3 subtareas concretas y accionables
-- Cada subtarea toma 15-30 minutos
+- Cada subtarea toma 15-30 minutos (1 o 2 pomodoros)
 - Empieza con verbo de acción: Identificar / Implementar / Conectar / Crear / Verificar
 - Las 3 subtareas juntas completan la tarea original
+- Estima los pomodoros de cada subtarea (entero, 1 o 2)
 
 Responde ÚNICAMENTE con JSON válido:
-{"subtasks":["Subtarea 1","Subtarea 2","Subtarea 3"]}`;
+{"subtasks":[{"title":"Subtarea 1","pomodoros":1},{"title":"Subtarea 2","pomodoros":2},{"title":"Subtarea 3","pomodoros":1}]}`;
 
 const splitBlockedTask = async (taskTitle, projectName, projectDescription) => {
   try {
@@ -174,13 +201,17 @@ const splitBlockedTask = async (taskTitle, projectName, projectDescription) => {
     }
 
     console.log(`[Groq split] Generadas ${parsed.subtasks.length} subtareas para: "${taskTitle}"`);
-    return parsed.subtasks.map(String).filter(Boolean).slice(0, 4);
+    // Subtareas: máximo 2 pomodoros cada una.
+    return parsed.subtasks
+        .map((s) => normalizeTask(s, 2))
+        .filter((s) => s && s.title)
+        .slice(0, 4);
   } catch (err) {
     console.warn(`[Groq split] Falló (${err.message}), usando subtareas predeterminadas`);
     return [
-      `Identificar el punto exacto de bloqueo en: ${taskTitle}`,
-      `Implementar la parte principal de: ${taskTitle}`,
-      `Verificar y finalizar: ${taskTitle}`,
+      { title: `Identificar el punto exacto de bloqueo en: ${taskTitle}`, pomodoros: 1 },
+      { title: `Implementar la parte principal de: ${taskTitle}`, pomodoros: 2 },
+      { title: `Verificar y finalizar: ${taskTitle}`, pomodoros: 1 },
     ];
   }
 };

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import 'pomodoro_screen.dart';
+import 'settings_sheet.dart' show FocusDurationField;
 
 class ProjectDetailScreen extends StatelessWidget {
   final String projectId;
@@ -12,6 +15,7 @@ class ProjectDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final state = context.watch<AppState>();
     final project = state.projects.firstWhere(
       (p) => p.id == projectId,
@@ -37,11 +41,11 @@ class ProjectDetailScreen extends StatelessWidget {
       _                        => AppColors.primary,
     };
     final phaseLabel = switch (phase) {
-      PomodoroPhase.shortBreak => 'Descanso · ${state.formattedTime}',
-      PomodoroPhase.longBreak  => 'Descanso largo · ${state.formattedTime}',
-      PomodoroPhase.paused     => 'Pausado · ${state.formattedTime}',
-      PomodoroPhase.askComplete => 'Pomodoro completado',
-      _                        => 'En curso · ${state.formattedTime}',
+      PomodoroPhase.shortBreak => l.statusBreak(state.formattedTime),
+      PomodoroPhase.longBreak  => l.statusLongBreak(state.formattedTime),
+      PomodoroPhase.paused     => l.statusPaused(state.formattedTime),
+      PomodoroPhase.askComplete => l.pomodoroCompleted,
+      _                        => l.statusInProgress(state.formattedTime),
     };
     final phaseIcon = switch (phase) {
       PomodoroPhase.shortBreak => Icons.coffee_rounded,
@@ -73,6 +77,7 @@ class ProjectDetailScreen extends StatelessWidget {
           ? _CompletedView(
               project: project,
               isDark: isDark,
+              l: l,
             )
           : Column(
               children: [
@@ -98,7 +103,7 @@ class ProjectDetailScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Progreso general',
+                              l.overallProgress,
                               style: TextStyle(
                                 color: textSecondary,
                                 fontSize: 13,
@@ -133,7 +138,7 @@ class ProjectDetailScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '${project.completedCount} de ${project.totalCount} tareas',
+                              l.tasksCount(project.completedCount, project.totalCount),
                               style: TextStyle(
                                 color: textSecondary,
                                 fontSize: 13,
@@ -144,18 +149,18 @@ class ProjectDetailScreen extends StatelessWidget {
                               GestureDetector(
                                 onTap: () => _showTasksSheet(
                                     context, project, isDark),
-                                child: const Row(
+                                child: Row(
                                   children: [
                                     Text(
-                                      'Ver todas',
-                                      style: TextStyle(
+                                      l.viewAll,
+                                      style: const TextStyle(
                                         color: AppColors.primary,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    SizedBox(width: 2),
-                                    Icon(
+                                    const SizedBox(width: 2),
+                                    const Icon(
                                       Icons.chevron_right_rounded,
                                       color: AppColors.primary,
                                       size: 16,
@@ -164,6 +169,58 @@ class ProjectDetailScreen extends StatelessWidget {
                                 ),
                               ),
                           ],
+                        ),
+                        if (project.tasksLoaded && project.tasks.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            l.estimatedTotalPomodoros(
+                              project.tasks.fold<int>(
+                                  0, (s, t) => s + t.estimatedWithSubs),
+                            ),
+                            style: TextStyle(
+                              color: AppColors.primary.withValues(alpha: 0.8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        Divider(color: borderColor, height: 1),
+                        const SizedBox(height: 6),
+                        // Duración del enfoque — editable por proyecto
+                        InkWell(
+                          onTap: () => _showFocusSheet(context, project, isDark),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Icon(Icons.timer_outlined,
+                                    size: 16, color: textSecondary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l.focusDuration,
+                                    style: TextStyle(
+                                      color: textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  l.minutesValue(project.focusMinutes),
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.edit_rounded,
+                                    size: 14, color: AppColors.primary),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -186,7 +243,7 @@ class ProjectDetailScreen extends StatelessWidget {
 
                   // Current task label
                   Text(
-                    'TAREA ACTUAL',
+                    l.currentTaskLabel,
                     style: TextStyle(
                       color: textSecondary,
                       fontSize: 11,
@@ -231,7 +288,7 @@ class ProjectDetailScreen extends StatelessWidget {
                                           borderRadius: BorderRadius.circular(20),
                                         ),
                                         child: Text(
-                                          'Tarea ${project.currentTaskIndex + 1} de ${project.totalCount}',
+                                          l.taskNofM(project.currentTaskIndex + 1, project.totalCount),
                                           style: const TextStyle(
                                             color: AppColors.primary,
                                             fontSize: 11,
@@ -320,11 +377,21 @@ class ProjectDetailScreen extends StatelessWidget {
                                                     ),
                                                   ),
                                                 ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  l.pomodoroProgress(
+                                                      sub.pomodorosCount, sub.estimatedPomodoros),
+                                                  style: TextStyle(
+                                                    color: textSecondary,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           );
                                         }),
-                                      ] else if (currentTask.pomodorosCount > 0) ...[
+                                      ] else ...[
                                         const SizedBox(height: 12),
                                         Row(
                                           children: [
@@ -332,11 +399,13 @@ class ProjectDetailScreen extends StatelessWidget {
                                                 size: 14, color: AppColors.primary),
                                             const SizedBox(width: 5),
                                             Text(
-                                              '${currentTask.pomodorosCount} pomodoro${currentTask.pomodorosCount > 1 ? 's' : ''}',
+                                              l.pomodoroProgress(
+                                                  currentTask.pomodorosCount,
+                                                  currentTask.estimatedPomodoros),
                                               style: const TextStyle(
                                                 color: AppColors.primary,
                                                 fontSize: 12,
-                                                fontWeight: FontWeight.w500,
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ],
@@ -431,8 +500,8 @@ class ProjectDetailScreen extends StatelessWidget {
                                 const SizedBox(width: 10),
                                 Text(
                                   pomodoroActive
-                                      ? 'Continuar'
-                                      : 'Iniciar Pomodoro',
+                                      ? l.continueLabel
+                                      : l.startPomodoro,
                                   style: const TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w600,
@@ -461,7 +530,64 @@ class ProjectDetailScreen extends StatelessWidget {
     );
   }
 
+  void _showFocusSheet(BuildContext context, project, bool isDark) {
+    final appState = context.read<AppState>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final l = AppLocalizations.of(sheetCtx);
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.card(isDark),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border(isDark),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  l.focusDuration,
+                  style: TextStyle(
+                    color: AppColors.textPrimary(isDark),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FocusDurationField(
+                  minutes: project.focusMinutes as int,
+                  isDark: isDark,
+                  onChanged: (m) {
+                    appState.updateProjectFocusMinutes(project.id as String, m);
+                    Navigator.pop(sheetCtx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _goToPomodoro(BuildContext context, AppState state) {
+    final l = AppLocalizations.of(context);
     final activeProject = state.activeProject;
     final hasOtherActive = activeProject != null &&
         activeProject.id != projectId &&
@@ -485,10 +611,10 @@ class ProjectDetailScreen extends StatelessWidget {
             children: [
               Icon(Icons.timer_rounded, color: phaseColor, size: 20),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Pomodoro en curso',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  l.pomodoroInProgressTitle,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -498,7 +624,7 @@ class ProjectDetailScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Ya tienes un Pomodoro activo en:',
+                l.alreadyActivePomodoro,
                 style: TextStyle(
                   color: AppColors.textSecondary(isDark),
                   fontSize: 13,
@@ -528,7 +654,7 @@ class ProjectDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${state.formattedTime} restantes',
+                      l.timeRemaining(state.formattedTime),
                       style: TextStyle(
                         color: phaseColor,
                         fontSize: 13,
@@ -540,7 +666,7 @@ class ProjectDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Termina o pausa ese Pomodoro antes de empezar uno nuevo.',
+                l.finishBeforeNew,
                 style: TextStyle(
                   color: AppColors.textSecondary(isDark),
                   fontSize: 13,
@@ -552,7 +678,7 @@ class ProjectDetailScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Entendido'),
+              child: Text(l.gotIt),
             ),
             TextButton(
               onPressed: () {
@@ -563,7 +689,7 @@ class ProjectDetailScreen extends StatelessWidget {
                 );
               },
               child: Text(
-                'Ir al Pomodoro activo',
+                l.goToActivePomodoro,
                 style: TextStyle(color: phaseColor, fontWeight: FontWeight.w700),
               ),
             ),
@@ -582,17 +708,16 @@ class ProjectDetailScreen extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, AppState state) {
+    final l = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar proyecto'),
-        content: const Text(
-          '¿Seguro que quieres eliminar este proyecto? Esta acción no se puede deshacer.',
-        ),
+        title: Text(l.deleteProject),
+        content: Text(l.deleteProjectConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
+            child: Text(l.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -600,8 +725,7 @@ class ProjectDetailScreen extends StatelessWidget {
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child:
-                const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(l.delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -614,10 +738,12 @@ class ProjectDetailScreen extends StatelessWidget {
 class _CompletedView extends StatelessWidget {
   final dynamic project;
   final bool isDark;
+  final AppLocalizations l;
 
   const _CompletedView({
     required this.project,
     required this.isDark,
+    required this.l,
   });
 
   String _formatFocusTime(int totalMinutes) {
@@ -629,9 +755,7 @@ class _CompletedView extends StatelessWidget {
   }
 
   String _formatCompletedAt(DateTime dt) {
-    final months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
-                    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    return DateFormat.yMMMd(l.localeName).format(dt);
   }
 
   @override
@@ -668,7 +792,7 @@ class _CompletedView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Proyecto completado',
+            l.projectCompleted,
             style: TextStyle(
               color: textPrimary,
               fontSize: 22,
@@ -684,7 +808,7 @@ class _CompletedView extends StatelessWidget {
             )
           else
             Text(
-              'Todas las tareas completadas',
+              l.allTasksCompleted,
               style: TextStyle(color: textSecondary, fontSize: 14, height: 1.5),
               textAlign: TextAlign.center,
             ),
@@ -704,7 +828,7 @@ class _CompletedView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'RESUMEN DEL PROYECTO',
+                  l.projectSummary,
                   style: TextStyle(
                     color: textSecondary,
                     fontSize: 11,
@@ -721,9 +845,7 @@ class _CompletedView extends StatelessWidget {
                         icon: Icons.timer_rounded,
                         color: AppColors.primary,
                         value: '$totalPomodoros',
-                        label: totalPomodoros == 1
-                            ? 'pomodoro'
-                            : 'pomodoros',
+                        label: l.pomodoroLabel(totalPomodoros),
                         isDark: isDark,
                       ),
                     ),
@@ -738,7 +860,7 @@ class _CompletedView extends StatelessWidget {
                         icon: Icons.schedule_rounded,
                         color: AppColors.breakColor,
                         value: _formatFocusTime(totalMinutes),
-                        label: 'tiempo total',
+                        label: l.totalTime,
                         isDark: isDark,
                       ),
                     ),
@@ -753,7 +875,7 @@ class _CompletedView extends StatelessWidget {
                         icon: Icons.task_alt_rounded,
                         color: AppColors.success,
                         value: '$totalTasks',
-                        label: totalTasks == 1 ? 'tarea' : 'tareas',
+                        label: l.taskLabel(totalTasks),
                         isDark: isDark,
                       ),
                     ),
@@ -778,7 +900,7 @@ class _CompletedView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'TAREAS COMPLETADAS',
+                  l.completedTasks,
                   style: TextStyle(
                     color: textSecondary,
                     fontSize: 11,
@@ -975,6 +1097,7 @@ class _TasksSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final bg = AppColors.card(isDark);
     final handle = AppColors.border(isDark);
     final textPrimary = AppColors.textPrimary(isDark);
@@ -1017,7 +1140,7 @@ class _TasksSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Todas las tareas',
+                          l.allTasks,
                           style: TextStyle(
                             color: textPrimary,
                             fontSize: 20,
@@ -1027,7 +1150,7 @@ class _TasksSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '$completed completadas · ${total - completed} pendientes',
+                          l.completedPendingCount(completed, total - completed),
                           style:
                               TextStyle(color: textSecondary, fontSize: 13),
                         ),
@@ -1126,9 +1249,9 @@ class _TasksSheet extends StatelessWidget {
                                         borderRadius:
                                             BorderRadius.circular(6),
                                       ),
-                                      child: const Text(
-                                        'EN CURSO',
-                                        style: TextStyle(
+                                      child: Text(
+                                        l.inProgressBadge,
+                                        style: const TextStyle(
                                           color: AppColors.primary,
                                           fontSize: 9,
                                           fontWeight: FontWeight.w800,
@@ -1151,28 +1274,29 @@ class _TasksSheet extends StatelessWidget {
                                     decorationColor: textSecondary,
                                   ),
                                 ),
-                                if ((task.pomodorosCount as int) > 0) ...[
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.timer_outlined,
-                                        size: 11,
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.timer_outlined,
+                                      size: 11,
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.7),
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      l.pomodoroProgress(
+                                        task.totalPomodorosWithSubs as int,
+                                        task.estimatedWithSubs as int,
+                                      ),
+                                      style: TextStyle(
                                         color: AppColors.primary
                                             .withValues(alpha: 0.7),
+                                        fontSize: 11,
                                       ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '${task.pomodorosCount} pomodoro${(task.pomodorosCount as int) > 1 ? 's' : ''}',
-                                        style: TextStyle(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.7),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 10),
                               ],
                             ),
