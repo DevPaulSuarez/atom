@@ -1,7 +1,7 @@
 name: atom
 description: "Atom — Productividad Pomodoro con gestión inteligente de proyectos"
 publish_to: 'none'
-version: 1.0.2+4
+version: 1.0.2+5
 
 environment:
   sdk: ^3.11.5
