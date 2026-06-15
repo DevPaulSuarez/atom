@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
@@ -27,6 +28,13 @@ app.use(express.json());
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
+
+// Páginas públicas (política de privacidad, etc.)
+const publicDir = path.join(__dirname, '..', 'public');
+app.get('/privacy', (_req, res) =>
+  res.sendFile(path.join(publicDir, 'privacy.html'))
+);
+app.use(express.static(publicDir));
 
 app.use('/auth',     authRouter);
 app.use('/projects', projectsRouter);
