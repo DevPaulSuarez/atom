@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
@@ -12,6 +11,8 @@ const projectsRouter = require('./routes/projects.routes');
 const tasksRouter = require('./routes/tasks.routes');
 const sessionsRouter = require('./routes/sessions.routes');
 const streakRouter   = require('./routes/streak.routes');
+const privacyRouter       = require('./routes/privacy');
+const deleteAccountRouter = require('./routes/delete-account');
 const { errorMiddleware } = require('./middleware/error.middleware');
 
 const app = express();
@@ -29,18 +30,13 @@ app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
 
-// Páginas públicas (política de privacidad, etc.)
-const publicDir = path.join(__dirname, '..', 'public');
-app.get('/privacy', (_req, res) =>
-  res.sendFile(path.join(publicDir, 'privacy.html'))
-);
-app.use(express.static(publicDir));
-
 app.use('/auth',     authRouter);
 app.use('/projects', projectsRouter);
 app.use('/tasks',    tasksRouter);
 app.use('/sessions', sessionsRouter);
 app.use('/streak',   streakRouter);
+app.use('/privacidad',      privacyRouter);
+app.use('/eliminar-cuenta', deleteAccountRouter);
 
 // 404 genérico
 app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
