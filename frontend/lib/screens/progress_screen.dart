@@ -21,6 +21,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
   void initState() {
     super.initState();
     _future = context.read<AppState>().loadStats();
+    // Refresca la racha desde el backend al abrir (no solo al iniciar sesión).
+    context.read<AppState>().reloadStreak();
   }
 
   String _formatTime(int minutes) {
@@ -56,19 +58,75 @@ class _ProgressScreenState extends State<ProgressScreen> {
             );
           }
           final stats = snapshot.data;
-          if (stats == null || stats.totalPomodoros == 0) {
-            return _EmptyStats(isDark: isDark, message: l.noStatsYet);
-          }
-          return _StatsBody(
-            stats: stats,
-            isDark: isDark,
-            l: l,
-            currentStreak: state.currentStreak,
-            longestStreak: state.longestStreak,
-            formatTime: _formatTime,
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // La racha SIEMPRE se muestra, aunque todavía no haya pomodoros.
+                _StreakRow(
+                  currentStreak: state.currentStreak,
+                  longestStreak: state.longestStreak,
+                  l: l,
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 12),
+                if (stats != null && stats.totalPomodoros > 0)
+                  _StatsBody(
+                    stats: stats,
+                    isDark: isDark,
+                    l: l,
+                    formatTime: _formatTime,
+                  )
+                else
+                  _EmptyStats(isDark: isDark, message: l.noStatsYet),
+              ],
+            ),
           );
         },
       ),
+    );
+  }
+}
+
+/// Fila de racha (actual + mejor). Se muestra siempre, haya o no pomodoros.
+class _StreakRow extends StatelessWidget {
+  final int currentStreak;
+  final int longestStreak;
+  final AppLocalizations l;
+  final bool isDark;
+
+  const _StreakRow({
+    required this.currentStreak,
+    required this.longestStreak,
+    required this.l,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            icon: Icons.local_fire_department_rounded,
+            iconColor: const Color(0xFFFF8C42),
+            value: l.daysCount(currentStreak),
+            label: '${l.streak} · ${l.streakCurrent}',
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.emoji_events_rounded,
+            iconColor: Colors.amber,
+            value: l.daysCount(longestStreak),
+            label: '${l.streak} · ${l.streakBest}',
+            isDark: isDark,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -77,51 +135,20 @@ class _StatsBody extends StatelessWidget {
   final ProgressStats stats;
   final bool isDark;
   final AppLocalizations l;
-  final int currentStreak;
-  final int longestStreak;
   final String Function(int) formatTime;
 
   const _StatsBody({
     required this.stats,
     required this.isDark,
     required this.l,
-    required this.currentStreak,
-    required this.longestStreak,
     required this.formatTime,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Racha
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.local_fire_department_rounded,
-                  iconColor: const Color(0xFFFF8C42),
-                  value: l.daysCount(currentStreak),
-                  label: '${l.streak} · ${l.streakCurrent}',
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.emoji_events_rounded,
-                  iconColor: Colors.amber,
-                  value: l.daysCount(longestStreak),
-                  label: '${l.streak} · ${l.streakBest}',
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           Row(
             children: [
               Expanded(
@@ -188,7 +215,6 @@ class _StatsBody extends StatelessWidget {
             localeName: l.localeName,
           ),
         ],
-      ),
     );
   }
 }
@@ -339,11 +365,13 @@ class _EmptyStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return SizedBox(
+      width: double.infinity,
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.symmetric(vertical: 48),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               width: 88,

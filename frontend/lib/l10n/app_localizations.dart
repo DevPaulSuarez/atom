@@ -266,46 +266,106 @@ abstract class AppLocalizations {
   /// **'New project'**
   String get newProject;
 
+  /// No description provided for @seeMore.
+  ///
+  /// In en, this message translates to:
+  /// **'See more'**
+  String get seeMore;
+
+  /// No description provided for @filterByDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by date'**
+  String get filterByDate;
+
+  /// No description provided for @completedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed {date}'**
+  String completedOn(String date);
+
   /// No description provided for @newProjectSubtitle.
   ///
   /// In en, this message translates to:
   /// **'AI will generate the tasks automatically'**
   String get newProjectSubtitle;
 
+  /// No description provided for @newProjectSubtitleManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Write your own tasks'**
+  String get newProjectSubtitleManual;
+
+  /// No description provided for @modeWithAI.
+  ///
+  /// In en, this message translates to:
+  /// **'With AI'**
+  String get modeWithAI;
+
+  /// No description provided for @modeManual.
+  ///
+  /// In en, this message translates to:
+  /// **'My tasks'**
+  String get modeManual;
+
+  /// No description provided for @yourTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Your tasks'**
+  String get yourTasks;
+
+  /// No description provided for @addTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Add task'**
+  String get addTask;
+
+  /// No description provided for @taskTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Read chapter 1'**
+  String get taskTitleHint;
+
+  /// No description provided for @manualNoTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Add at least one task'**
+  String get manualNoTasks;
+
   /// No description provided for @fieldProjectName.
   ///
   /// In en, this message translates to:
-  /// **'Project name'**
+  /// **'What do you want to achieve?'**
   String get fieldProjectName;
 
   /// No description provided for @hintProjectName.
   ///
   /// In en, this message translates to:
-  /// **'e.g. Learn Flutter'**
+  /// **'e.g. Study for the history exam'**
   String get hintProjectName;
 
   /// No description provided for @fieldDescription.
   ///
   /// In en, this message translates to:
-  /// **'Description (optional)'**
+  /// **'Tell us the details (optional)'**
   String get fieldDescription;
 
   /// No description provided for @hintDescription.
   ///
   /// In en, this message translates to:
-  /// **'e.g. Build mobile apps with Dart and Flutter from scratch'**
+  /// **'e.g. Read 3 chapters and write a summary of each'**
   String get hintDescription;
 
   /// No description provided for @fieldMotivation.
   ///
   /// In en, this message translates to:
-  /// **'Why do you want to finish this? (optional)'**
+  /// **'Why is it important to you? (optional)'**
   String get fieldMotivation;
 
   /// No description provided for @hintMotivation.
   ///
   /// In en, this message translates to:
-  /// **'e.g. Land a job as a developer'**
+  /// **'e.g. Pass the exam and raise my grade'**
   String get hintMotivation;
 
   /// No description provided for @generatingTasks.
@@ -770,6 +830,30 @@ abstract class AppLocalizations {
   /// **'Dark mode'**
   String get darkMode;
 
+  /// No description provided for @alarmWorkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pomodoro complete!'**
+  String get alarmWorkTitle;
+
+  /// No description provided for @alarmWorkBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a break 🎉'**
+  String get alarmWorkBody;
+
+  /// No description provided for @alarmBreakTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Break over'**
+  String get alarmBreakTitle;
+
+  /// No description provided for @alarmBreakBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to focus again 💪'**
+  String get alarmBreakBody;
+
   /// No description provided for @language.
   ///
   /// In en, this message translates to:
@@ -881,8 +965,8 @@ abstract class AppLocalizations {
   /// No description provided for @daysCount.
   ///
   /// In en, this message translates to:
-  /// **'{n, plural, one{# day} other{# days}}'**
-  String daysCount(num n);
+  /// **'{n, plural, one{{n} day} other{{n} days}}'**
+  String daysCount(int n);
 
   /// No description provided for @progressTitle.
   ///

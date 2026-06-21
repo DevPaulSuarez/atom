@@ -53,8 +53,20 @@ exports.createProject = async (req, res, next) => {
       [projectId]
     );
 
-    // 2. Generar microtareas con IA (cada una con su estimación de pomodoros)
-    const generatedTasks = await generateMicroTasks(name, description);
+    // 2. Tareas: si el usuario las escribió a mano, se usan tal cual (sin IA);
+    //    si no, las genera la IA. Cada tarea lleva su estimación de pomodoros.
+    const clampPom = (n) => {
+      const v = parseInt(n, 10);
+      return Number.isFinite(v) ? Math.min(4, Math.max(1, v)) : 2;
+    };
+    const manualTasks = (Array.isArray(req.body.tasks) ? req.body.tasks : [])
+      .map((t) => ({ title: String(t?.title ?? '').trim(), pomodoros: clampPom(t?.pomodoros) }))
+      .filter((t) => t.title)
+      .slice(0, 30);
+
+    const generatedTasks = manualTasks.length
+      ? manualTasks
+      : await generateMicroTasks(name, description);
 
     // 3. Insertar tareas en una sola query
     const values = [];

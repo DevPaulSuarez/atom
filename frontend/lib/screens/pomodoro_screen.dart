@@ -380,6 +380,55 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // "Tarea N de M" + progreso de pomodoros de la tarea
+                            if (currentTask != null &&
+                                state.activeProject != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: phaseColor.withValues(
+                                            alpha: isDark ? 0.25 : 0.15),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        l.taskNofM(
+                                          state.activeProject!
+                                                  .currentTaskIndex +
+                                              1,
+                                          state.activeProject!.totalCount,
+                                        ),
+                                        style: TextStyle(
+                                          color: phaseColor,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      l.pomodoroProgress(
+                                        currentTask.hasSubtasks
+                                            ? currentTask.totalPomodorosWithSubs
+                                            : workTask.pomodorosCount,
+                                        currentTask.hasSubtasks
+                                            ? currentTask.estimatedWithSubs
+                                            : workTask.estimatedPomodoros,
+                                      ),
+                                      style: TextStyle(
+                                        color: textSecondary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             if (workTask.parentId != null &&
                                 currentTask != null)
                               Text(

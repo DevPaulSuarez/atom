@@ -63,63 +63,6 @@ class _SettingsSheet extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // ── Racha ─────────────────────────────────────────────────────
-            _SectionLabel(text: l.streak.toUpperCase(), color: textSecondary),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              decoration: BoxDecoration(
-                color: AppColors.bg(isDark),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border(isDark)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.local_fire_department_rounded,
-                      color: Color(0xFFFF8C42), size: 28),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l.streakCurrent,
-                          style: TextStyle(
-                              color: textSecondary, fontSize: 12),
-                        ),
-                        Text(
-                          l.daysCount(state.currentStreak),
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        l.streakBest,
-                        style: TextStyle(color: textSecondary, fontSize: 12),
-                      ),
-                      Text(
-                        l.daysCount(state.longestStreak),
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
             // ── Apariencia ────────────────────────────────────────────────
             _SectionLabel(text: l.appearance.toUpperCase(), color: textSecondary),
             const SizedBox(height: 10),

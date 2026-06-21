@@ -2,6 +2,15 @@ const { v4: uuidv4 } = require('uuid');
 const { validationResult } = require('express-validator');
 const db = require('../config/database');
 
+// MySQL DATETIME no acepta ISO8601 con 'T'/'Z' (ej. 2026-06-21T10:00:00.000Z).
+// Convierte a 'YYYY-MM-DD HH:MM:SS' en UTC. Devuelve null si la fecha es inválida.
+const toMysqlDateTime = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 exports.createSession = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -23,7 +32,7 @@ exports.createSession = async (req, res, next) => {
       `INSERT INTO pomodoro_sessions
          (id, user_id, micro_task_id, type, started_at, ended_at, was_skipped, task_completed)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.user.id, microTaskId, type, startedAt, endedAt ?? null, wasSkipped ?? false, taskCompleted ?? null]
+      [id, req.user.id, microTaskId, type, toMysqlDateTime(startedAt), toMysqlDateTime(endedAt), wasSkipped ?? false, taskCompleted ?? null]
     );
 
     const { rows: [session] } = await db.query(
@@ -39,7 +48,16 @@ exports.createSession = async (req, res, next) => {
 exports.getStats = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const WORK = `type = 'work' AND was_skipped = 0 AND ended_at IS NOT NULL`;
+
+    // Para usuarios tester, las sesiones saltadas también cuentan (probar rápido).
+    const { rows: [u] } = await db.query(
+      'SELECT is_tester FROM users WHERE id = ?',
+      [userId]
+    );
+    const isTester = !!(u && (u.is_tester === 1 || u.is_tester === true));
+    const WORK = isTester
+      ? `type = 'work' AND ended_at IS NOT NULL`
+      : `type = 'work' AND was_skipped = 0 AND ended_at IS NOT NULL`;
 
     const { rows: [totals] } = await db.query(
       `SELECT

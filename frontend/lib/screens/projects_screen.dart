@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_localizations.dart';
@@ -21,6 +22,14 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   _Filter _filter = _Filter.low;
 
+  // Vista de completados (100%): paginación y filtro por fecha.
+  static const _donePageSize = 5;
+  int _doneLimit = _donePageSize;
+  DateTime? _doneDate;
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   List<Project> _apply(List<Project> all) => switch (_filter) {
     _Filter.all => all,
     _Filter.low =>
@@ -35,14 +44,56 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       all
           .where((p) => !p.isCompleted && p.progress > 0.50 && p.progress < 1.0)
           .toList(),
-    _Filter.done => all.where((p) => p.isCompleted).toList(),
+    _Filter.done => _completedSorted(all),
   };
+
+  /// Completados ordenados por fecha (últimos primero), filtrados por la fecha
+  /// elegida si la hay.
+  List<Project> _completedSorted(List<Project> all) {
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    var done = all.where((p) => p.isCompleted).toList()
+      ..sort((a, b) =>
+          (b.completedAt ?? epoch).compareTo(a.completedAt ?? epoch));
+    final d = _doneDate;
+    if (d != null) {
+      done = done
+          .where((p) => p.completedAt != null && _sameDay(p.completedAt!, d))
+          .toList();
+    }
+    return done;
+  }
+
+  Future<void> _pickDoneDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _doneDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() {
+        _doneDate = picked;
+        _doneLimit = _donePageSize;
+      });
+    }
+  }
+
+  void _clearDoneDate() => setState(() {
+    _doneDate = null;
+    _doneLimit = _donePageSize;
+  });
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isDark = state.isDarkMode;
     final filtered = _apply(state.projects);
+
+    final isDone = _filter == _Filter.done;
+    // En completados se muestran de a 5 (los últimos); el resto, completo.
+    final visible = isDone ? filtered.take(_doneLimit).toList() : filtered;
+    final hasMore = isDone && filtered.length > _doneLimit;
 
     return Scaffold(
       backgroundColor: AppColors.bg(isDark),
@@ -53,9 +104,22 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             child: _FilterBar(
               selected: _filter,
               isDark: isDark,
-              onSelect: (f) => setState(() => _filter = f),
+              onSelect: (f) => setState(() {
+                _filter = f;
+                _doneLimit = _donePageSize;
+              }),
             ),
           ),
+          // Filtro por fecha, solo en la vista de completados.
+          if (isDone)
+            SliverToBoxAdapter(
+              child: _DoneDateBar(
+                date: _doneDate,
+                isDark: isDark,
+                onPick: _pickDoneDate,
+                onClear: _clearDoneDate,
+              ),
+            ),
           if (state.projectsLoading && state.projects.isEmpty)
             const SliverFillRemaining(
               child: Center(
@@ -64,14 +128,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             )
           else if (filtered.isEmpty)
             SliverFillRemaining(child: _EmptyState(isDark: isDark))
-          else
+          else ...[
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+              padding: EdgeInsets.fromLTRB(20, 8, 20, hasMore ? 8 : 120),
               sliver: SliverList.separated(
-                itemCount: filtered.length,
+                itemCount: visible.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (ctx, i) {
-                  final project = filtered[i];
+                  final project = visible[i];
                   final originalIndex = state.projects.indexOf(project);
                   return _ProjectCard(
                     project: project,
@@ -81,6 +145,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 },
               ),
             ),
+            if (hasMore)
+              SliverToBoxAdapter(
+                child: _SeeMoreButton(
+                  isDark: isDark,
+                  remaining: filtered.length - _doneLimit,
+                  onTap: () =>
+                      setState(() => _doneLimit += _donePageSize),
+                ),
+              ),
+          ],
         ],
       ),
       floatingActionButton: _Fab(isDark: isDark),
@@ -313,6 +387,127 @@ class _FilterBar extends StatelessWidget {
   }
 }
 
+// ── Barra de filtro por fecha (vista de completados) ──────────────────────────
+
+class _DoneDateBar extends StatelessWidget {
+  final DateTime? date;
+  final bool isDark;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  const _DoneDateBar({
+    required this.date,
+    required this.isDark,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final hasDate = date != null;
+    final label =
+        hasDate ? DateFormat.yMMMd(l.localeName).format(date!) : l.filterByDate;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: onPick,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: hasDate ? AppColors.primary : AppColors.card(isDark),
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(
+                  color: hasDate ? AppColors.primary : AppColors.border(isDark),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.calendar_today_rounded,
+                      size: 14,
+                      color: hasDate
+                          ? Colors.white
+                          : AppColors.textSecondary(isDark)),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: hasDate
+                          ? Colors.white
+                          : AppColors.textSecondary(isDark),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (hasDate) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onClear,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.close_rounded,
+                    size: 18, color: AppColors.textSecondary(isDark)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Botón "Ver más" (paginación de completados) ───────────────────────────────
+
+class _SeeMoreButton extends StatelessWidget {
+  final bool isDark;
+  final int remaining;
+  final VoidCallback onTap;
+
+  const _SeeMoreButton({
+    required this.isDark,
+    required this.remaining,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.card(isDark),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border(isDark)),
+          ),
+          child: Text(
+            '${l.seeMore} ($remaining)',
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Project card (lista vertical con colores) ─────────────────────────────────
 
 class _ProjectCard extends StatelessWidget {
@@ -337,6 +532,22 @@ class _ProjectCard extends StatelessWidget {
     return colors[index % colors.length];
   }
 
+  void _open(BuildContext context) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, anim, _) => ProjectDetailScreen(projectId: project.id),
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
+          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(
+            CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -355,24 +566,120 @@ class _ProjectCard extends StatelessWidget {
       _                        => AppColors.primary,
     };
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, anim, _) =>
-                ProjectDetailScreen(projectId: project.id),
-            transitionsBuilder: (_, anim, _, child) => SlideTransition(
-              position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-                  .animate(
-                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
-                  ),
-              child: child,
+    // Proyecto completado: tarjeta elegante con acento de éxito y fecha.
+    if (isComplete) {
+      final completedOn = project.completedAt != null
+          ? DateFormat.yMMMd(l.localeName).format(project.completedAt!)
+          : null;
+      return GestureDetector(
+        onTap: () => _open(context),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.card(isDark),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.success.withValues(alpha: isDark ? 0.30 : 0.22),
             ),
-            transitionDuration: const Duration(milliseconds: 320),
           ),
-        );
-      },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Franja de acento de éxito a la izquierda.
+                  Container(width: 4, color: AppColors.success),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppColors.success
+                                  .withValues(alpha: isDark ? 0.18 : 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.check_rounded,
+                                size: 22, color: AppColors.success),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  project.name,
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary(isDark),
+                                    fontSize: 15.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Icon(Icons.event_available_rounded,
+                                        size: 12,
+                                        color: AppColors.textSecondary(isDark)),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        completedOn != null
+                                            ? l.completedOn(completedOn)
+                                            : l.completedLabel,
+                                        style: TextStyle(
+                                          color:
+                                              AppColors.textSecondary(isDark),
+                                          fontSize: 12,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.success
+                                  .withValues(alpha: isDark ? 0.18 : 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              '100%',
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _open(context),
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
@@ -589,6 +896,10 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
   String? _error;
   late int _focusMinutes;
 
+  // Modo manual: el usuario escribe sus propias tareas (sin IA).
+  bool _manualMode = false;
+  final List<_ManualTaskRow> _manualTasks = [];
+
   @override
   void initState() {
     super.initState();
@@ -601,12 +912,51 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _motivationCtrl.dispose();
+    for (final t in _manualTasks) {
+      t.dispose();
+    }
     super.dispose();
+  }
+
+  void _setManualMode(bool manual) {
+    setState(() {
+      _manualMode = manual;
+      _error = null;
+      // Al entrar a manual por primera vez, arranca con una fila vacía.
+      if (manual && _manualTasks.isEmpty) _manualTasks.add(_ManualTaskRow());
+    });
+  }
+
+  void _addManualTask() {
+    setState(() => _manualTasks.add(_ManualTaskRow()));
+  }
+
+  void _removeManualTask(int i) {
+    setState(() {
+      _manualTasks[i].dispose();
+      _manualTasks.removeAt(i);
+    });
   }
 
   Future<void> _submit() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+
+    List<Map<String, dynamic>>? tasks;
+    if (_manualMode) {
+      tasks = _manualTasks
+          .where((t) => t.controller.text.trim().isNotEmpty)
+          .map((t) => <String, dynamic>{
+                'title': t.controller.text.trim(),
+                'pomodoros': t.pomodoros,
+              })
+          .toList();
+      if (tasks.isEmpty) {
+        setState(() => _error = AppLocalizations.of(context).manualNoTasks);
+        return;
+      }
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -616,6 +966,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
       _descCtrl.text.trim(),
       _motivationCtrl.text.trim(),
       focusMinutes: _focusMinutes,
+      tasks: tasks,
     );
     if (!mounted) return;
     if (error != null) {
@@ -688,7 +1039,9 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                       ),
                     ),
                     Text(
-                      l.newProjectSubtitle,
+                      _manualMode
+                          ? l.newProjectSubtitleManual
+                          : l.newProjectSubtitle,
                       style: TextStyle(
                         color: AppColors.textSecondary(isDark),
                         fontSize: 12,
@@ -698,7 +1051,16 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            // Toggle: tareas con IA o escritas a mano.
+            _ModeToggle(
+              manualMode: _manualMode,
+              isDark: isDark,
+              aiLabel: l.modeWithAI,
+              manualLabel: l.modeManual,
+              onChanged: _setManualMode,
+            ),
+            const SizedBox(height: 20),
             _Field(
               controller: _nameCtrl,
               label: l.fieldProjectName,
@@ -720,6 +1082,42 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               hint: l.hintMotivation,
               isDark: isDark,
             ),
+            if (_manualMode) ...[
+              const SizedBox(height: 18),
+              Text(
+                l.yourTasks.toUpperCase(),
+                style: TextStyle(
+                  color: AppColors.textSecondary(isDark),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._manualTasks.asMap().entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _ManualTaskTile(
+                      row: e.value,
+                      isDark: isDark,
+                      hint: l.taskTitleHint,
+                      canRemove: _manualTasks.length > 1,
+                      onChanged: () => setState(() {}),
+                      onRemove: () => _removeManualTask(e.key),
+                    ),
+                  )),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _addManualTask,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(l.addTask),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             Text(
               l.focusDuration.toUpperCase(),
@@ -737,7 +1135,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               onChanged: (m) => setState(() => _focusMinutes = m),
             ),
             const SizedBox(height: 20),
-            if (_loading)
+            if (_loading && !_manualMode)
               Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Row(
@@ -855,6 +1253,11 @@ class _Field extends StatelessWidget {
         TextField(
           controller: controller,
           maxLines: maxLines,
+          // Evita que el autocorrector reemplace palabras (nombres, términos
+          // poco comunes, etc.). Mantiene mayúscula al inicio de cada frase.
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.sentences,
           style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
@@ -886,6 +1289,199 @@ class _Field extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Selector entre "tareas con IA" y "tareas a mano".
+class _ModeToggle extends StatelessWidget {
+  final bool manualMode;
+  final bool isDark;
+  final String aiLabel;
+  final String manualLabel;
+  final ValueChanged<bool> onChanged;
+
+  const _ModeToggle({
+    required this.manualMode,
+    required this.isDark,
+    required this.aiLabel,
+    required this.manualLabel,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.bg(isDark),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border(isDark)),
+      ),
+      child: Row(
+        children: [
+          _seg(aiLabel, !manualMode, () => onChanged(false),
+              Icons.auto_awesome_rounded),
+          _seg(manualLabel, manualMode, () => onChanged(true),
+              Icons.edit_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg(String label, bool active, VoidCallback onTap, IconData icon) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 16,
+                  color:
+                      active ? Colors.white : AppColors.textSecondary(isDark)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color:
+                      active ? Colors.white : AppColors.textSecondary(isDark),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Estado de una tarea manual: título + pomodoros estimados.
+class _ManualTaskRow {
+  final TextEditingController controller = TextEditingController();
+  int pomodoros = 2;
+  void dispose() => controller.dispose();
+}
+
+/// Fila editable: campo de título + selector de pomodoros (1–4) + quitar.
+class _ManualTaskTile extends StatelessWidget {
+  final _ManualTaskRow row;
+  final bool isDark;
+  final String hint;
+  final bool canRemove;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  const _ManualTaskTile({
+    required this.row,
+    required this.isDark,
+    required this.hint,
+    required this.canRemove,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 10),
+      decoration: BoxDecoration(
+        color: AppColors.bg(isDark),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border(isDark)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: row.controller,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(
+                      color: AppColors.textPrimary(isDark), fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: TextStyle(
+                        color: AppColors.textSecondary(isDark), fontSize: 14),
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              if (canRemove)
+                GestureDetector(
+                  onTap: onRemove,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close_rounded,
+                        size: 18, color: AppColors.textSecondary(isDark)),
+                  ),
+                ),
+            ],
+          ),
+          Row(
+            children: [
+              const Text('🍅', style: TextStyle(fontSize: 13)),
+              const Spacer(),
+              _stepBtn(Icons.remove_rounded, () {
+                if (row.pomodoros > 1) {
+                  row.pomodoros--;
+                  onChanged();
+                }
+              }),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  '${row.pomodoros}',
+                  style: TextStyle(
+                    color: AppColors.textPrimary(isDark),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              _stepBtn(Icons.add_rounded, () {
+                if (row.pomodoros < 4) {
+                  row.pomodoros++;
+                  onChanged();
+                }
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Icon(icon, size: 17, color: AppColors.primary),
+      ),
     );
   }
 }

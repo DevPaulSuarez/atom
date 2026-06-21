@@ -100,26 +100,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newProject => 'New project';
 
   @override
+  String get seeMore => 'See more';
+
+  @override
+  String get filterByDate => 'Filter by date';
+
+  @override
+  String completedOn(String date) {
+    return 'Completed $date';
+  }
+
+  @override
   String get newProjectSubtitle => 'AI will generate the tasks automatically';
 
   @override
-  String get fieldProjectName => 'Project name';
+  String get newProjectSubtitleManual => 'Write your own tasks';
 
   @override
-  String get hintProjectName => 'e.g. Learn Flutter';
+  String get modeWithAI => 'With AI';
 
   @override
-  String get fieldDescription => 'Description (optional)';
+  String get modeManual => 'My tasks';
+
+  @override
+  String get yourTasks => 'Your tasks';
+
+  @override
+  String get addTask => 'Add task';
+
+  @override
+  String get taskTitleHint => 'e.g. Read chapter 1';
+
+  @override
+  String get manualNoTasks => 'Add at least one task';
+
+  @override
+  String get fieldProjectName => 'What do you want to achieve?';
+
+  @override
+  String get hintProjectName => 'e.g. Study for the history exam';
+
+  @override
+  String get fieldDescription => 'Tell us the details (optional)';
 
   @override
   String get hintDescription =>
-      'e.g. Build mobile apps with Dart and Flutter from scratch';
+      'e.g. Read 3 chapters and write a summary of each';
 
   @override
-  String get fieldMotivation => 'Why do you want to finish this? (optional)';
+  String get fieldMotivation => 'Why is it important to you? (optional)';
 
   @override
-  String get hintMotivation => 'e.g. Land a job as a developer';
+  String get hintMotivation => 'e.g. Pass the exam and raise my grade';
 
   @override
   String get generatingTasks => 'Generating tasks with AI...';
@@ -402,6 +434,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get darkMode => 'Dark mode';
 
   @override
+  String get alarmWorkTitle => 'Pomodoro complete!';
+
+  @override
+  String get alarmWorkBody => 'Take a break 🎉';
+
+  @override
+  String get alarmBreakTitle => 'Break over';
+
+  @override
+  String get alarmBreakBody => 'Ready to focus again 💪';
+
+  @override
   String get language => 'Language';
 
   @override
@@ -464,12 +508,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get streakBest => 'Best';
 
   @override
-  String daysCount(num n) {
+  String daysCount(int n) {
     String _temp0 = intl.Intl.pluralLogic(
       n,
       locale: localeName,
-      other: '# days',
-      one: '# day',
+      other: '$n days',
+      one: '$n day',
     );
     return '$_temp0';
   }

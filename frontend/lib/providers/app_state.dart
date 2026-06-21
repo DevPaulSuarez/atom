@@ -11,6 +11,7 @@ import '../models/micro_task.dart';
 import '../models/progress_stats.dart';
 import '../models/project.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 export '../services/api_service.dart' show ApiException;
 
@@ -25,6 +26,10 @@ class AppState extends ChangeNotifier {
   int _remainingSeconds = _kDefaultWorkMinutes * 60;
   int _completedPomodoros = 0;
   Timer? _timer;
+  // Momento real (reloj del sistema) en que termina la fase actual. Se usa para
+  // recalcular el tiempo restante aunque iOS congele el Timer en segundo plano
+  // o con la pantalla bloqueada.
+  DateTime? _deadline;
   bool _isDarkMode = true; // oscuro por defecto
   String _localeMode = 'system'; // 'system' | 'en' | 'es'
   bool _hasSeenOnboarding = false;
@@ -238,6 +243,9 @@ class AppState extends ChangeNotifier {
 
   // ── Streaks & historial ──────────────────────────────────────────────────────
 
+  /// Recarga la racha desde el backend (para refrescar al abrir Progreso).
+  Future<void> reloadStreak() => _loadStreak();
+
   Future<void> _loadStreak() async {
     try {
       final data = await _api.get('/streak') as Map<String, dynamic>;
@@ -328,14 +336,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Crea un proyecto. Si [tasks] trae elementos `{title, pomodoros}`, se usan
+  /// esas tareas tal cual (modo manual) y el backend NO llama a la IA.
   Future<String?> addProject(String name, String description, String motivation,
-      {int? focusMinutes}) async {
+      {int? focusMinutes, List<Map<String, dynamic>>? tasks}) async {
     try {
       final data = await _api.post('/projects', {
         'name': name,
         'description': description,
         'motivation': motivation,
         'focusMinutes': focusMinutes ?? this.focusMinutes,
+        if (tasks != null && tasks.isNotEmpty) 'tasks': tasks,
       }) as Map<String, dynamic>;
 
       final project = Project.fromApi(data);
@@ -371,21 +382,22 @@ class AppState extends ChangeNotifier {
   void startPomodoro() {
     stopAlarm();
     _phase = PomodoroPhase.working;
-    _remainingSeconds = _workSeconds;
     _sessionStart = DateTime.now();
-    _startTimer();
+    _beginCountdown(_workSeconds);
     notifyListeners();
   }
 
   void pausePomodoro() {
+    _syncRemainingFromDeadline();
     _stopTimer();
+    _deadline = null;
     _phase = PomodoroPhase.paused;
     notifyListeners();
   }
 
   void resumePomodoro() {
     _phase = PomodoroPhase.working;
-    _startTimer();
+    _beginCountdown(_remainingSeconds);
     notifyListeners();
   }
 
@@ -466,20 +478,20 @@ class AppState extends ChangeNotifier {
   }
 
   void _startBreak() {
-    if (_completedPomodoros % _kCycleLength == 0) {
-      _phase = PomodoroPhase.longBreak;
-      _remainingSeconds = _kLongBreak;
-    } else {
-      _phase = PomodoroPhase.shortBreak;
-      _remainingSeconds = _kShortBreak;
-    }
+    final dur = (_completedPomodoros % _kCycleLength == 0)
+        ? _kLongBreak
+        : _kShortBreak;
+    _phase = (_completedPomodoros % _kCycleLength == 0)
+        ? PomodoroPhase.longBreak
+        : PomodoroPhase.shortBreak;
     _sessionStart = DateTime.now();
-    _startTimer();
+    _beginCountdown(dur);
     notifyListeners();
   }
 
   void skipPhase() {
     _stopTimer();
+    _deadline = null;
     _remainingSeconds = 0;
     _onPhaseEnd(skipped: true);
   }
@@ -544,6 +556,52 @@ class AppState extends ChangeNotifier {
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
+  /// Arranca una cuenta regresiva de [seconds] fijando el fin en el reloj real.
+  void _beginCountdown(int seconds) {
+    _remainingSeconds = seconds;
+    _deadline = DateTime.now().add(Duration(seconds: seconds));
+    _startTimer();
+    _scheduleAlarmNotification();
+  }
+
+  /// Programa la alarma del sistema para el fin de la fase actual, así suena
+  /// aunque la app esté en segundo plano o el celular bloqueado.
+  void _scheduleAlarmNotification() {
+    final dl = _deadline;
+    if (dl == null) return;
+    final l = _l10n;
+    final isWork = _phase == PomodoroPhase.working;
+    NotificationService.scheduleAlarm(
+      dl,
+      title: isWork ? l.alarmWorkTitle : l.alarmBreakTitle,
+      body: isWork ? l.alarmWorkBody : l.alarmBreakBody,
+    );
+  }
+
+  /// Recalcula [_remainingSeconds] a partir del [_deadline] (reloj real).
+  void _syncRemainingFromDeadline() {
+    if (_deadline == null) return;
+    final left = _deadline!.difference(DateTime.now()).inSeconds;
+    _remainingSeconds = left < 0 ? 0 : left;
+  }
+
+  /// La app volvió a primer plano: iOS pudo haber congelado el Timer mientras
+  /// estaba en segundo plano o con la pantalla bloqueada. Recalculamos el tiempo
+  /// real y, si la fase ya terminó, disparamos su fin.
+  void onAppResumed() {
+    if (_deadline == null) return;
+    final left = _deadline!.difference(DateTime.now()).inSeconds;
+    if (left > 0) {
+      _remainingSeconds = left;
+      notifyListeners();
+    } else {
+      _stopTimer();
+      _deadline = null;
+      _remainingSeconds = 0;
+      _onPhaseEnd();
+    }
+  }
+
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
@@ -552,14 +610,21 @@ class AppState extends ChangeNotifier {
   void _stopTimer() {
     _timer?.cancel();
     _timer = null;
+    _deadline = null;
+    // Cancela la alarma programada (pausa, salto, fin natural o reinicio).
+    NotificationService.cancelAlarm();
   }
 
   void _tick() {
-    if (_remainingSeconds > 0) {
-      _remainingSeconds--;
+    if (_deadline == null) return;
+    final left = _deadline!.difference(DateTime.now()).inSeconds;
+    if (left > 0) {
+      _remainingSeconds = left;
       notifyListeners();
     } else {
+      _remainingSeconds = 0;
       _stopTimer();
+      _deadline = null;
       _onPhaseEnd();
     }
   }
@@ -569,7 +634,9 @@ class AppState extends ChangeNotifier {
       _activeProject?.activeWorkTask?.pomodorosCount++;
       _completedPomodoros++;
       _recordSession('work', skipped: skipped);
-      if (!skipped) _pingStreak(); // un pomodoro real mantiene la racha
+      // Un pomodoro real mantiene la racha. Para testers, saltar también cuenta
+      // (sirve para probar rápido sin esperar el timer completo).
+      if (!skipped || isTester) _pingStreak();
       _phase = PomodoroPhase.askComplete;
       _persistPomodoroCount();
       _playAlarm();

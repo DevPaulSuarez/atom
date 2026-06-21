@@ -14,6 +14,7 @@ router.post('/',
     body('description').optional().trim().isLength({ max: 2000 }),
     body('motivation').optional().trim().isLength({ max: 500 }),
     body('focusMinutes').optional().isInt({ min: 1, max: 90 }),
+    body('tasks').optional().isArray({ max: 30 }),
   ],
   projectsController.createProject
 );

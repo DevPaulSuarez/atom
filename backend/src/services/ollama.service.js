@@ -2,49 +2,50 @@ const { env } = require('../config/env');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+// Tareas de respaldo genéricas: sirven para CUALQUIER tipo de proyecto
+// (estudio, hogar, salud, trabajo, creatividad, eventos, etc.), no solo software.
 const FALLBACK_TASKS = {
   simple: [
-    'Definir los requisitos del proyecto y escribir los criterios de aceptación',
-    'Crear la estructura de carpetas e instalar las dependencias necesarias',
-    'Implementar la funcionalidad principal con el caso de uso más importante',
-    'Agregar validaciones y manejo de errores a la funcionalidad core',
-    'Escribir pruebas para los flujos críticos y corregir los fallos encontrados',
-    'Documentar cómo ejecutar el proyecto y hacer la entrega final',
+    'Definir con claridad qué quieres lograr y cómo sabrás que está terminado',
+    'Reunir la información, materiales o herramientas que necesitas para empezar',
+    'Dividir el trabajo en partes y decidir por dónde empezar',
+    'Avanzar la parte principal del proyecto, paso a paso',
+    'Revisar lo hecho y corregir los detalles que falten',
+    'Dar los toques finales y dejar todo listo',
   ],
   medio: [
-    'Definir los requisitos y crear el esquema de la base de datos con tablas e índices',
-    'Configurar el proyecto base: repositorio, estructura de carpetas y variables de entorno',
-    'Crear los modelos de datos y las migraciones de base de datos',
-    'Implementar el endpoint o función principal con validación de entrada',
-    'Conectar la capa de datos con la lógica de negocio y verificar el flujo end-to-end',
-    'Diseñar y construir la pantalla o interfaz principal con los componentes necesarios',
-    'Agregar la pantalla de detalle y la navegación entre vistas',
-    'Implementar el manejo de estados de carga, error y vacío en la UI',
-    'Conectar el frontend con el backend y probar el flujo completo',
-    'Agregar autenticación o control de acceso según los requisitos',
-    'Escribir pruebas para los endpoints o funciones críticas',
-    'Revisar seguridad, limpiar código y preparar para despliegue',
+    'Definir el objetivo, el alcance y el resultado que esperas obtener',
+    'Investigar y reunir la información necesaria para empezar',
+    'Listar todas las tareas y ordenarlas por prioridad',
+    'Preparar los materiales, recursos o herramientas requeridos',
+    'Avanzar la primera parte principal del proyecto',
+    'Avanzar la segunda parte principal del proyecto',
+    'Resolver los puntos difíciles o que requieren más atención',
+    'Unir las partes y verificar que todo encaje',
+    'Revisar la calidad y corregir errores o detalles',
+    'Pedir una opinión o validar el resultado con alguien, si aplica',
+    'Aplicar los ajustes finales según lo revisado',
+    'Cerrar el proyecto y dejar todo ordenado',
   ],
   complejo: [
-    'Definir la arquitectura del sistema y crear el diagrama de componentes',
-    'Diseñar el modelo de datos completo: entidades, relaciones e índices',
-    'Configurar el entorno de desarrollo con CI/CD y gestión de secretos',
-    'Crear las migraciones de base de datos y verificar que aplican correctamente',
-    'Implementar el sistema de autenticación: registro, login y manejo de tokens JWT',
-    'Crear el módulo de usuarios: endpoints CRUD y validación de permisos',
-    'Implementar el endpoint POST del recurso principal con validación y persistencia',
-    'Implementar los endpoints GET con paginación y filtros',
-    'Implementar los endpoints PATCH y DELETE con verificación de propietario',
-    'Diseñar y construir la pantalla principal con lista y estado vacío',
-    'Crear la pantalla de detalle con navegación y carga de datos desde la API',
-    'Implementar el flujo de creación y edición con formularios validados',
-    'Conectar todos los flujos del frontend con la API y manejar errores de red',
-    'Agregar notificaciones, feedback visual y estados de carga en toda la app',
-    'Implementar caché local para uso offline básico',
-    'Escribir pruebas de integración para los endpoints críticos',
-    'Revisar seguridad: CORS, rate limiting, validación de entradas y headers HTTP',
-    'Preparar el despliegue: variables de producción y checklist de go-live',
-    'Monitorear métricas post-lanzamiento y cerrar issues detectados en las primeras 24h',
+    'Definir la meta general, el alcance y los criterios de éxito',
+    'Investigar a fondo el tema y reunir referencias o ejemplos',
+    'Dividir el proyecto en etapas o partes principales',
+    'Crear un plan con fechas y prioridades',
+    'Preparar todos los recursos, materiales y herramientas',
+    'Desarrollar la primera etapa del proyecto',
+    'Desarrollar la segunda etapa del proyecto',
+    'Desarrollar la tercera etapa del proyecto',
+    'Resolver los obstáculos o las partes más complejas',
+    'Unir las distintas etapas en un solo resultado',
+    'Hacer una primera revisión completa de lo realizado',
+    'Corregir los errores y mejorar los puntos débiles',
+    'Pedir retroalimentación a otra persona o fuente confiable',
+    'Aplicar los cambios sugeridos',
+    'Pulir los detalles y la presentación final',
+    'Hacer una verificación final de calidad',
+    'Preparar la entrega, publicación o puesta en marcha del resultado',
+    'Cerrar el proyecto y anotar lo que aprendiste',
   ],
 };
 
@@ -70,20 +71,26 @@ const normalizeTask = (entry, max = MAX_POMODOROS) => {
   return null;
 };
 
-const SYSTEM_PROMPT = `Eres un experto en planificación de proyectos de software y productividad.
+const SYSTEM_PROMPT = `Eres un experto en planificación y productividad que ayuda a las personas a dividir CUALQUIER meta o proyecto en microtareas accionables, sin importar el área: estudios, trabajo, hogar, salud y ejercicio, finanzas personales, proyectos creativos (escribir, música, arte, manualidades), organización de eventos, viajes, aprender una habilidad, emprendimientos, tareas domésticas, etc.
 
-REGLA FUNDAMENTAL: Una microtarea = UNA acción técnica concreta con UN resultado verificable. Duración: 15-60 min.
+MUY IMPORTANTE: NO asumas que el proyecto es de programación, software o tecnología. Detecta el área REAL a partir del nombre y la descripción del usuario y genera tareas propias de ESE contexto, con su lenguaje natural. Solo usa términos técnicos de software si el usuario pide claramente algo de programación.
 
-Ejemplos CORRECTOS:
-- "Crear endpoint POST /projects en Express con validación de nombre y descripción"
-- "Configurar navegación Flutter entre pantallas Home y Detalle con Named Routes"
-- "Implementar timer de cuenta regresiva de 25 minutos con pausa y reinicio en Flutter"
-- "Guardar proyecto en PostgreSQL e insertar microtareas en tabla micro_tasks"
+REGLA FUNDAMENTAL: Una microtarea = UNA acción concreta con UN resultado verificable. Duración: 15-60 min.
+
+Ejemplos CORRECTOS según el área:
+- Estudio: "Resumir el capítulo 3 del libro en una página con tus propias palabras"
+- Hogar: "Ordenar y limpiar los cajones de la cocina"
+- Ejercicio: "Completar la rutina de cardio de 20 minutos del día 1"
+- Escritura: "Escribir el primer borrador de la introducción (unas 300 palabras)"
+- Evento: "Hacer la lista de invitados y confirmar el lugar"
+- Cocina: "Comprar los ingredientes de la receta según la lista"
+- Software (solo si el usuario lo pide): "Crear endpoint POST /projects con validación de nombre"
 
 Ejemplos INCORRECTOS (demasiado vagos):
-- "Implementar backend" ✗
-- "Hacer la UI" ✗
-- "Desarrollar funcionalidad principal" ✗
+- "Estudiar" ✗
+- "Hacer ejercicio" ✗
+- "Organizar la casa" ✗
+- "Avanzar el proyecto" ✗
 
 Complejidad del proyecto:
 - "simple"   (1-2 días)  → genera 5 a 7 tareas
@@ -91,10 +98,12 @@ Complejidad del proyecto:
 - "complejo" (semanas)   → genera 15 a 20 tareas
 
 Reglas de formato para cada tarea:
-1. Empieza con verbo de acción: Crear / Configurar / Implementar / Conectar / Diseñar / Agregar / Escribir
-2. Menciona el artefacto concreto: endpoint, pantalla, función, tabla, modelo, componente
-3. Añade la tecnología si aporta claridad: Flutter, Express, PostgreSQL, etc.
-4. Las tareas siguen orden secuencial: estructura → datos → lógica → UI → integración → pruebas
+1. Empieza con un verbo de acción adecuado al área (Leer, Escribir, Llamar, Comprar, Practicar, Ordenar, Preparar, Cocinar, Diseñar, Crear, Revisar, Investigar...).
+2. Menciona el objeto o resultado concreto: qué exactamente se hace y con qué.
+3. Usa el lenguaje cotidiano del área del usuario; evita jerga técnica innecesaria.
+4. Ordena las tareas de forma lógica: preparación → desarrollo → revisión → cierre.
+
+SI EL USUARIO YA INDICA SUS PROPIOS PASOS O TAREAS en la descripción (una lista, "una tarea por cada...", pasos numerados, etc.), RESPÉTALOS: crea exactamente una tarea por cada paso que pide, con sus mismas palabras, sin inventar otras ni reordenarlas. En ese caso tu único trabajo extra es estimar los pomodoros de cada una.
 
 ESTIMACIÓN: para cada tarea estima cuántos pomodoros (bloques de enfoque) toma completarla.
 - 1 pomodoro  = tarea pequeña y directa
@@ -102,6 +111,7 @@ ESTIMACIÓN: para cada tarea estima cuántos pomodoros (bloques de enfoque) toma
 - 3-4 pomodoros = tarea grande o con varias partes
 Usa solo números enteros del 1 al 4. Sé realista, no infles las estimaciones.
 
+Responde en el MISMO idioma en que el usuario escribió el proyecto.
 Responde ÚNICAMENTE con JSON válido, sin texto adicional:
 {"complexity":"simple|medio|complejo","tasks":[{"title":"Tarea 1","pomodoros":2},{"title":"Tarea 2","pomodoros":1}]}`;
 
@@ -156,14 +166,16 @@ const generateMicroTasks = async (name, description) => {
   }
 };
 
-const SPLIT_SYSTEM_PROMPT = `Eres un experto en productividad. Una tarea está bloqueada y necesita dividirse en pasos más pequeños.
+const SPLIT_SYSTEM_PROMPT = `Eres un experto en productividad. Una tarea está bloqueada y necesita dividirse en pasos más pequeños y fáciles de empezar. Esto aplica a CUALQUIER tipo de tarea (estudio, hogar, salud, trabajo, creatividad, eventos, etc.), no solo de programación.
 
 Reglas:
 - Genera exactamente 3 subtareas concretas y accionables
 - Cada subtarea toma 15-30 minutos (1 o 2 pomodoros)
-- Empieza con verbo de acción: Identificar / Implementar / Conectar / Crear / Verificar
+- Empieza con un verbo de acción adecuado al área (Identificar, Preparar, Buscar, Escribir, Hacer, Practicar, Revisar...)
 - Las 3 subtareas juntas completan la tarea original
+- Usa el lenguaje natural de la tarea; evita jerga técnica innecesaria salvo que la tarea sea de programación
 - Estima los pomodoros de cada subtarea (entero, 1 o 2)
+- Responde en el mismo idioma del usuario
 
 Responde ÚNICAMENTE con JSON válido:
 {"subtasks":[{"title":"Subtarea 1","pomodoros":1},{"title":"Subtarea 2","pomodoros":2},{"title":"Subtarea 3","pomodoros":1}]}`;
@@ -209,9 +221,9 @@ const splitBlockedTask = async (taskTitle, projectName, projectDescription) => {
   } catch (err) {
     console.warn(`[Groq split] Falló (${err.message}), usando subtareas predeterminadas`);
     return [
-      { title: `Identificar el punto exacto de bloqueo en: ${taskTitle}`, pomodoros: 1 },
-      { title: `Implementar la parte principal de: ${taskTitle}`, pomodoros: 2 },
-      { title: `Verificar y finalizar: ${taskTitle}`, pomodoros: 1 },
+      { title: `Identificar qué te está frenando en: ${taskTitle}`, pomodoros: 1 },
+      { title: `Hacer la parte principal de: ${taskTitle}`, pomodoros: 2 },
+      { title: `Revisar y terminar: ${taskTitle}`, pomodoros: 1 },
     ];
   }
 };

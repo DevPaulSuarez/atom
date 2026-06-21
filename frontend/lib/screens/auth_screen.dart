@@ -456,6 +456,9 @@ class _Field extends StatelessWidget {
       controller: ctrl,
       obscureText: obscure,
       keyboardType: keyboardType,
+      // Sin autocorrector: evita que dañe el email, el nombre o la contraseña.
+      autocorrect: false,
+      enableSuggestions: false,
       style: TextStyle(color: textPrimary, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
