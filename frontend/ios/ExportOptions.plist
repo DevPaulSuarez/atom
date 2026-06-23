@@ -7,14 +7,7 @@
 	<key>teamID</key>
 	<string>KTAP3KL6FN</string>
 	<key>signingStyle</key>
-	<string>manual</string>
-	<key>signingCertificate</key>
-	<string>3D5D2D1754316D64EE1606ACE2A79A3DD75BE579</string>
-	<key>provisioningProfiles</key>
-	<dict>
-		<key>com.devpess.atom</key>
-		<string>Atom App Store</string>
-	</dict>
+	<string>automatic</string>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>destination</key>
