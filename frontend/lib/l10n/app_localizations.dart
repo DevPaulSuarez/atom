@@ -1045,6 +1045,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Split the task'**
   String get splitTaskAction;
+
+  /// No description provided for @updateRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get updateRequiredTitle;
+
+  /// No description provided for @updateRequiredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A new version of Atom is available. Please update to keep using the app.'**
+  String get updateRequiredBody;
+
+  /// No description provided for @updateNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Update now'**
+  String get updateNow;
 }
 
 class _AppLocalizationsDelegate

@@ -174,5 +174,9 @@
   "overEstimateTitle": "Llegaste a tu estimado",
   "overEstimateBody": "Esta tarea está tomando más de lo planeado. ¿Qué quieres hacer?",
   "oneMorePomodoro": "Un pomodoro más",
-  "splitTaskAction": "Dividir la tarea"
+  "splitTaskAction": "Dividir la tarea",
+
+  "updateRequiredTitle": "Actualización requerida",
+  "updateRequiredBody": "Hay una nueva versión de Atom disponible. Actualiza para seguir usando la app.",
+  "updateNow": "Actualizar ahora"
 }

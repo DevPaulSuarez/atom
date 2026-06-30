@@ -196,5 +196,9 @@
   "overEstimateTitle": "You hit your estimate",
   "overEstimateBody": "This task is taking longer than planned. What do you want to do?",
   "oneMorePomodoro": "One more pomodoro",
-  "splitTaskAction": "Split the task"
+  "splitTaskAction": "Split the task",
+
+  "updateRequiredTitle": "Update required",
+  "updateRequiredBody": "A new version of Atom is available. Please update to keep using the app.",
+  "updateNow": "Update now"
 }

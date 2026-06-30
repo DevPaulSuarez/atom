@@ -560,4 +560,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get splitTaskAction => 'Split the task';
+
+  @override
+  String get updateRequiredTitle => 'Update required';
+
+  @override
+  String get updateRequiredBody =>
+      'A new version of Atom is available. Please update to keep using the app.';
+
+  @override
+  String get updateNow => 'Update now';
 }

@@ -13,6 +13,7 @@ const sessionsRouter = require('./routes/sessions.routes');
 const streakRouter   = require('./routes/streak.routes');
 const privacyRouter       = require('./routes/privacy');
 const deleteAccountRouter = require('./routes/delete-account');
+const versionRouter       = require('./routes/version.routes');
 const { errorMiddleware } = require('./middleware/error.middleware');
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/projects', projectsRouter);
 app.use('/tasks',    tasksRouter);
 app.use('/sessions', sessionsRouter);
 app.use('/streak',   streakRouter);
+app.use('/version',  versionRouter);
 app.use('/privacidad',      privacyRouter);
 app.use('/eliminar-cuenta', deleteAccountRouter);
 

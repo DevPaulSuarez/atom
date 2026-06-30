@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
+import 'screens/force_update_dialog.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/projects_screen.dart';
 import 'services/api_service.dart';
+import 'services/version_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -33,10 +35,15 @@ class AtomApp extends StatefulWidget {
 }
 
 class _AtomAppState extends State<AtomApp> with WidgetsBindingObserver {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  final _versionService = VersionService();
+  bool _updateDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkVersion());
   }
 
   @override
@@ -51,7 +58,27 @@ class _AtomAppState extends State<AtomApp> with WidgetsBindingObserver {
     // la app está en segundo plano o la pantalla bloqueada).
     if (state == AppLifecycleState.resumed) {
       context.read<AppState>().onAppResumed();
+      _checkVersion();
     }
+  }
+
+  /// Pregunta al backend si la versión instalada quedó obsoleta y, de ser así,
+  /// muestra un diálogo que obliga a actualizar antes de seguir.
+  Future<void> _checkVersion() async {
+    if (_updateDialogOpen) return;
+    final result = await _versionService.check();
+    if (result == null || !result.mustUpdate) return;
+
+    final navContext = _navigatorKey.currentContext;
+    if (navContext == null || !navContext.mounted) return;
+
+    _updateDialogOpen = true;
+    await showDialog<void>(
+      context: navContext,
+      barrierDismissible: false,
+      builder: (_) => ForceUpdateDialog(storeUrl: result.storeUrl),
+    );
+    _updateDialogOpen = false;
   }
 
   @override
@@ -59,6 +86,7 @@ class _AtomAppState extends State<AtomApp> with WidgetsBindingObserver {
     final state = context.watch<AppState>();
     return MaterialApp(
       title: 'Atom',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
