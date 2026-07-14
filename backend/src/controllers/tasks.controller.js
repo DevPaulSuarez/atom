@@ -99,6 +99,8 @@ exports.splitTask = async (req, res, next) => {
     if (!check.length) return res.status(404).json({ error: 'Tarea no encontrada o ya completada' });
 
     const task = check[0];
+    // Idioma de la app (es|en) como pista para responder en el idioma del usuario.
+    const locale = req.body.locale === 'en' ? 'en' : 'es';
 
     // Solo se dividen tareas top-level (máximo 2 niveles)
     if (task.parent_id) {
@@ -120,8 +122,8 @@ exports.splitTask = async (req, res, next) => {
 
     // Generar subtareas y mensaje de coach en paralelo
     const [subtasks, coachMessage] = await Promise.all([
-      splitBlockedTask(task.title, task.project_name, task.project_desc),
-      generateCoachMessage(task.title, task.motivation || ''),
+      splitBlockedTask(task.title, task.project_name, task.project_desc, locale),
+      generateCoachMessage(task.title, task.motivation || '', locale),
     ]);
 
     // Insertar subtareas como hijos de la tarea bloqueada (con su estimación)

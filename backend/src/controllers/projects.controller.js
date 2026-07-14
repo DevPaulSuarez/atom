@@ -36,6 +36,8 @@ exports.createProject = async (req, res, next) => {
     if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
 
     const { name, description = '', motivation = '' } = req.body;
+    // Idioma de la app (es|en) como pista para responder en el idioma del usuario.
+    const locale = req.body.locale === 'en' ? 'en' : 'es';
 
     // Duración del enfoque elegida por el usuario (minutos). Default 25, rango 1–90.
     let focusMinutes = parseInt(req.body.focusMinutes, 10);
@@ -66,7 +68,7 @@ exports.createProject = async (req, res, next) => {
 
     const generatedTasks = manualTasks.length
       ? manualTasks
-      : await generateMicroTasks(name, description);
+      : await generateMicroTasks(name, description, locale);
 
     // 3. Insertar tareas en una sola query
     const values = [];

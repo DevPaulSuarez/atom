@@ -346,6 +346,7 @@ class AppState extends ChangeNotifier {
         'description': description,
         'motivation': motivation,
         'focusMinutes': focusMinutes ?? this.focusMinutes,
+        'locale': _effectiveLocale.languageCode,
         if (tasks != null && tasks.isNotEmpty) 'tasks': tasks,
       }) as Map<String, dynamic>;
 
@@ -456,7 +457,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await _api.post('/tasks/${task.id}/split', {}) as Map<String, dynamic>;
+      final data = await _api.post('/tasks/${task.id}/split',
+          {'locale': _effectiveLocale.languageCode}) as Map<String, dynamic>;
       final flat = (data['tasks'] as List)
           .map((t) => MicroTask.fromApi(t as Map<String, dynamic>))
           .toList();
